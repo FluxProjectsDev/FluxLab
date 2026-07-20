@@ -23,6 +23,7 @@ data class AppSettings(
     val units: UnitSetting = UnitSetting.IEC,
     val language: LanguageSetting = LanguageSetting.SYSTEM,
     val storageNoticeAccepted: Boolean = false,
+    val selectedReportSessionId: String? = null,
 )
 
 class SettingsStore(private val context: Context) {
@@ -35,6 +36,7 @@ class SettingsStore(private val context: Context) {
             units = enumValue(preferences[UNITS], UnitSetting.IEC),
             language = enumValue(preferences[LANGUAGE], LanguageSetting.SYSTEM),
             storageNoticeAccepted = preferences[NOTICE] ?: false,
+            selectedReportSessionId = preferences[SELECTED_REPORT_SESSION],
         )
     }
 
@@ -45,6 +47,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setUnits(value: UnitSetting) = context.settingsDataStore.edit { it[UNITS] = value.name }
     suspend fun setLanguage(value: LanguageSetting) = context.settingsDataStore.edit { it[LANGUAGE] = value.name }
     suspend fun acceptStorageNotice() = context.settingsDataStore.edit { it[NOTICE] = true }
+    suspend fun setSelectedReportSessionId(id: String?) = context.settingsDataStore.edit {
+        if (id.isNullOrBlank()) it.remove(SELECTED_REPORT_SESSION) else it[SELECTED_REPORT_SESSION] = id
+    }
 
     private inline fun <reified T : Enum<T>> enumValue(raw: String?, fallback: T): T =
         raw?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: fallback
@@ -57,5 +62,6 @@ class SettingsStore(private val context: Context) {
         val UNITS = stringPreferencesKey("units")
         val LANGUAGE = stringPreferencesKey("language")
         val NOTICE = booleanPreferencesKey("storage_notice_accepted")
+        val SELECTED_REPORT_SESSION = stringPreferencesKey("selected_report_session_id")
     }
 }

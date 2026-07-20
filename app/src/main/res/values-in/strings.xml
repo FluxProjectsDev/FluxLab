@@ -98,4 +98,19 @@
     <string name="permission_denied">Izin ditolak</string>
     <string name="gpu_driver_unavailable">Jalur driver GPU tidak tersedia</string>
     <string name="gpu_not_identified">GPU tidak teridentifikasi</string>
+    <string name="no_report_session_selected">Belum ada sesi yang dipilih</string>
+    <string name="no_completed_sessions">Belum ada sesi pengujian yang selesai.</string>
+    <string name="choose_report_session">Pilih sesi yang selesai</string>
+    <string name="export_requires_session">Pilih sesi pengujian yang sudah selesai sebelum mengekspor laporan.</string>
+    <string name="selected_session">Sesi terpilih</string>
+    <string name="change_session">Ganti sesi</string>
+    <string name="report_device_preset_methodology">%1$s %2$s • preset %3$s • metodologi v%4$d</string>
+    <string name="status_up_to_date">Data terbaru</string>
+    <string name="status_update_required">Data perlu diperbarui</string>
+    <string name="status_partially_available">Data tersedia sebagian</string>
+    <string name="status_invalid_data_format">Format data tidak valid</string>
+    <string name="status_unknown">Status tidak diketahui</string>
+    <string name="comparison_compatible">Kompatibel</string>
+    <string name="comparison_compatible_warnings">Kompatibel dengan peringatan</string>
+    <string name="comparison_incompatible_methodology">Metodologi tidak kompatibel</string>
 </resources>

@@ -136,6 +136,7 @@ class AppViewModel(application: Application, private val container: AppContainer
         benchmarkJob?.cancel()
     }
 
+    fun selectReportSession(id: String?) = viewModelScope.launch { container.settingsStore.setSelectedReportSessionId(id) }
     fun acceptStorageNotice() = viewModelScope.launch { container.settingsStore.acceptStorageNotice() }
     fun renameSession(id: String, label: String) = viewModelScope.launch { container.repository.rename(id, label) }
     fun markBaseline(id: String) = viewModelScope.launch { container.repository.markBaseline(id) }
