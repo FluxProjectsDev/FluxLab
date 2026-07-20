@@ -15,6 +15,7 @@ import com.febricahyaa.fluxlab.model.BatteryCapacityNormalizer
 import com.febricahyaa.fluxlab.model.BatteryCapacityUnit
 import com.febricahyaa.fluxlab.model.BatteryHealthEstimator
 import com.febricahyaa.fluxlab.model.BatteryHealthParser
+import com.febricahyaa.fluxlab.model.BatteryPowerConfidence
 import com.febricahyaa.fluxlab.model.StorageIdentityProvider
 import com.febricahyaa.fluxlab.model.BenchmarkPreset
 import com.febricahyaa.fluxlab.model.ThermalEligibilityEvaluator
@@ -171,11 +172,11 @@ class AndroidDeviceTelemetrySource(
             val file = batteryDir?.let { File(it, name) }
             file?.let { readLong(it.path)?.let { value -> value to it.path } }
         }
-        val currentCharge = BatteryCapacityNormalizer.read(chargeCounterMicroAh, BatteryCapacityUnit.MICROAMP_HOURS, "BatteryManager charge counter")
+        val currentCharge = BatteryCapacityNormalizer.reading(chargeCounterMicroAh, BatteryCapacityUnit.MICROAMP_HOURS, "BatteryManager charge counter")
         val fullRaw = node("charge_full")
         val designRaw = node("charge_full_design")
-        val full = BatteryCapacityNormalizer.read(fullRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, fullRaw?.second)
-        val design = BatteryCapacityNormalizer.read(designRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, designRaw?.second)
+        val full = BatteryCapacityNormalizer.reading(fullRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, fullRaw?.second)
+        val design = BatteryCapacityNormalizer.reading(designRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, designRaw?.second)
         val soh = BatteryHealthEstimator.estimate(full.normalizedMilliAmpHours, design.normalizedMilliAmpHours)
         val cycle = node("cycle_count", "battery_cycle")
         val cycleCount = cycle?.first?.takeIf { it in 0L..100000L }?.toInt()
