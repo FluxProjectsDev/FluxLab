@@ -115,7 +115,98 @@ data class BenchmarkSession(
     val warnings: List<String>,
     val failureReason: String?,
     val comparisonRole: ComparisonRole = ComparisonRole.NONE,
+    val methodology: MethodologyMetadata = MethodologyMetadata(),
 )
+
+/** Independent contracts that make two measurements comparable. */
+data class MethodologyMetadata(
+    val methodologyId: String = DEFAULT_METHODOLOGY_ID,
+    val methodologyVersion: Int = 1,
+    val workloadVersion: Int = 1,
+    val statisticsVersion: Int = 1,
+    val telemetrySchemaVersion: Int = 1,
+    val presetDefinitionVersion: Int = 1,
+    val storageMethodologyVersion: Int = 1,
+    val metricDefinitionVersion: Int = 1,
+) {
+    companion object {
+        const val DEFAULT_METHODOLOGY_ID = "fluxlab.measurement"
+        val DEFAULT = MethodologyMetadata()
+
+        fun decode(raw: String?): MethodologyMetadata {
+            if (raw.isNullOrBlank()) return DEFAULT
+            val values = raw.split(';').mapNotNull { part ->
+                val index = part.indexOf('=')
+                if (index <= 0) null else part.substring(0, index) to part.substring(index + 1)
+            }.toMap()
+            return MethodologyMetadata(
+                methodologyId = values["id"]?.takeIf(String::isNotBlank) ?: DEFAULT.methodologyId,
+                methodologyVersion = values["methodology"]?.toIntOrNull() ?: DEFAULT.methodologyVersion,
+                workloadVersion = values["workload"]?.toIntOrNull() ?: DEFAULT.workloadVersion,
+                statisticsVersion = values["statistics"]?.toIntOrNull() ?: DEFAULT.statisticsVersion,
+                telemetrySchemaVersion = values["telemetry"]?.toIntOrNull() ?: DEFAULT.telemetrySchemaVersion,
+                presetDefinitionVersion = values["preset"]?.toIntOrNull() ?: DEFAULT.presetDefinitionVersion,
+                storageMethodologyVersion = values["storage"]?.toIntOrNull() ?: DEFAULT.storageMethodologyVersion,
+                metricDefinitionVersion = values["metrics"]?.toIntOrNull() ?: DEFAULT.metricDefinitionVersion,
+            )
+        }
+    }
+
+    fun encode(): String = buildString {
+        append("id=").append(methodologyId.replace(";", "_")).append(';')
+        append("methodology=").append(methodologyVersion).append(';')
+        append("workload=").append(workloadVersion).append(';')
+        append("statistics=").append(statisticsVersion).append(';')
+        append("telemetry=").append(telemetrySchemaVersion).append(';')
+        append("preset=").append(presetDefinitionVersion).append(';')
+        append("storage=").append(storageMethodologyVersion).append(';')
+        append("metrics=").append(metricDefinitionVersion)
+    }
+}
+
+enum class ComparisonCompatibilityState {
+    COMPATIBLE,
+    COMPATIBLE_WITH_WARNINGS,
+    INCOMPATIBLE_METHODOLOGY,
+}
+
+data class ComparisonCompatibility(
+    val state: ComparisonCompatibilityState,
+    val warnings: List<String> = emptyList(),
+) {
+    val isMethodologyCompatible: Boolean
+        get() = state != ComparisonCompatibilityState.INCOMPATIBLE_METHODOLOGY
+}
+
+object ComparisonCompatibilityAnalyzer {
+    fun analyze(baseline: BenchmarkSession, candidate: BenchmarkSession): ComparisonCompatibility {
+        val base = baseline.methodology
+        val current = candidate.methodology
+        val incompatible = buildList {
+            if (base.methodologyId != current.methodologyId || base.methodologyVersion != current.methodologyVersion) add("Measurement methodology differs")
+            if (base.workloadVersion != current.workloadVersion) add("Workload methodology differs")
+            if (base.statisticsVersion != current.statisticsVersion) add("Statistics methodology differs")
+            if (base.metricDefinitionVersion != current.metricDefinitionVersion) add("Metric definitions differ")
+            if (base.storageMethodologyVersion != current.storageMethodologyVersion) add("Storage methodology differs")
+        }
+        if (incompatible.isNotEmpty()) return ComparisonCompatibility(ComparisonCompatibilityState.INCOMPATIBLE_METHODOLOGY, incompatible)
+
+        val warnings = buildList {
+            val baseEnvironment = baseline.environment
+            val candidateEnvironment = candidate.environment
+            if (baseEnvironment.batteryLevel != null && candidateEnvironment.batteryLevel != null && kotlin.math.abs(baseEnvironment.batteryLevel - candidateEnvironment.batteryLevel) >= 10) add("Starting battery level differs")
+            if (baseEnvironment.initialBatteryTemperatureC != null && candidateEnvironment.initialBatteryTemperatureC != null && kotlin.math.abs(baseEnvironment.initialBatteryTemperatureC - candidateEnvironment.initialBatteryTemperatureC) >= 3.0) add("Starting battery temperature differs")
+            if (baseEnvironment.charging != candidateEnvironment.charging) add("Charging state differs")
+            if (baseEnvironment.androidThermalStatus != candidateEnvironment.androidThermalStatus) add("Starting thermal status differs")
+            if (baseEnvironment.refreshRateHz != null && candidateEnvironment.refreshRateHz != null && kotlin.math.abs(baseEnvironment.refreshRateHz - candidateEnvironment.refreshRateHz) >= 1.0) add("Display refresh rate differs")
+            if (baseEnvironment.flux.installed != candidateEnvironment.flux.installed || baseEnvironment.flux.enabled != candidateEnvironment.flux.enabled || baseEnvironment.flux.activeProfile != candidateEnvironment.flux.activeProfile) add("Flux state or profile differs")
+            if (baseEnvironment.synthesisAvailable != candidateEnvironment.synthesisAvailable) add("SynthesisCore availability differs")
+            if (baseEnvironment.deviceManufacturer != candidateEnvironment.deviceManufacturer || baseEnvironment.deviceModel != candidateEnvironment.deviceModel || baseEnvironment.androidFingerprint != candidateEnvironment.androidFingerprint) add("Device or Android build differs")
+            if (baseEnvironment.presetConfiguration.preset != candidateEnvironment.presetConfiguration.preset) add("Benchmark preset differs")
+        }.distinct()
+        return ComparisonCompatibility(if (warnings.isEmpty()) ComparisonCompatibilityState.COMPATIBLE else ComparisonCompatibilityState.COMPATIBLE_WITH_WARNINGS, warnings)
+    }
+}
 
 sealed interface ReadinessResult {
     val reasons: List<String>
@@ -167,6 +258,7 @@ data class SessionComparison(
     val candidateId: String,
     val workloads: List<WorkloadComparison>,
     val environmentWarnings: List<String>,
+    val compatibility: ComparisonCompatibility = ComparisonCompatibility(ComparisonCompatibilityState.COMPATIBLE),
 )
 
 interface ReportExporter {

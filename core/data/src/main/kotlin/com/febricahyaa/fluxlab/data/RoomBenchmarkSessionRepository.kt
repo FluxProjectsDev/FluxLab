@@ -7,6 +7,7 @@ import com.febricahyaa.fluxlab.model.ComparisonRole
 import com.febricahyaa.fluxlab.model.FluxInstallation
 import com.febricahyaa.fluxlab.model.SessionStatus
 import com.febricahyaa.fluxlab.model.Statistics
+import com.febricahyaa.fluxlab.model.MethodologyMetadata
 import com.febricahyaa.fluxlab.model.WorkloadKind
 import com.febricahyaa.fluxlab.model.WorkloadResult
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,7 @@ class RoomBenchmarkSessionRepository(private val dao: BenchmarkDao) : BenchmarkS
         environment.rootState, environment.charging, environment.batteryLevel,
         environment.initialBatteryTemperatureC, environment.peakBatteryTemperatureC,
         environment.androidThermalStatus, environment.thermalHeadroomSamples.joinToString(","),
-        environment.refreshRateHz, warnings.joinToString("\n"), failureReason, comparisonRole.name,
+        environment.refreshRateHz, warnings.joinToString("\n"), failureReason, comparisonRole.name, methodology.encode(),
     )
 
     private fun WorkloadResult.toEntity(sessionId: String): WorkloadResultEntity = WorkloadResultEntity(
@@ -82,6 +83,7 @@ class RoomBenchmarkSessionRepository(private val dao: BenchmarkDao) : BenchmarkS
                 )
             },
             lines(entity.warnings), entity.failureReason, ComparisonRole.valueOf(entity.comparisonRole),
+            MethodologyMetadata.decode(entity.methodologyMetadata),
         )
     }
 

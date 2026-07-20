@@ -52,6 +52,15 @@ object ReportSerializer {
         append(",\n    \"version_name\": ").nullable(session.environment.flux.versionName)
         append(",\n    \"active_profile\": ").nullable(session.environment.flux.activeProfile)
         append(",\n    \"runtime_available\": ").append(session.environment.flux.runtimeAvailable)
+        append("\n  },\n  \"methodology\": {")
+        append("\n    \"id\": ").json(session.methodology.methodologyId)
+        append(",\n    \"methodology_version\": ").append(session.methodology.methodologyVersion)
+        append(",\n    \"workload_version\": ").append(session.methodology.workloadVersion)
+        append(",\n    \"statistics_version\": ").append(session.methodology.statisticsVersion)
+        append(",\n    \"telemetry_schema_version\": ").append(session.methodology.telemetrySchemaVersion)
+        append(",\n    \"preset_definition_version\": ").append(session.methodology.presetDefinitionVersion)
+        append(",\n    \"storage_methodology_version\": ").append(session.methodology.storageMethodologyVersion)
+        append(",\n    \"metric_definition_version\": ").append(session.methodology.metricDefinitionVersion)
         append("\n  },\n  \"environment\": {")
         append("\n    \"root_state\": ").json(session.environment.rootState)
         append(",\n    \"synthesis_core_available\": ").append(session.environment.synthesisAvailable)
@@ -77,7 +86,15 @@ object ReportSerializer {
             append(", \"coefficient_of_variation\": ").append(result.statistics.coefficientOfVariation ?: "null")
             append(", \"checksum\": ").json(result.validationChecksum).append('}')
         }
-        append("\n  ],\n  \"warnings\": ").stringArray(session.warnings)
+        append("\n  ],\n  \"preset_configuration\": {")
+        append("\n    \"preset\": ").json(session.environment.presetConfiguration.preset.name)
+        append(",\n    \"warm_up_count\": ").append(session.environment.presetConfiguration.warmUpCount)
+        append(",\n    \"measured_repetition_count\": ").append(session.environment.presetConfiguration.measuredRepetitionCount)
+        append(",\n    \"workload_scale\": ").append(session.environment.presetConfiguration.workloadScale)
+        append(",\n    \"inter_test_cooldown_ms\": ").append(session.environment.presetConfiguration.interTestCooldownMs)
+        append(",\n    \"maximum_duration_ms\": ").append(session.environment.presetConfiguration.maximumDurationMs)
+        append(",\n    \"storage_allocation_limit_bytes\": ").append(session.environment.presetConfiguration.storageAllocationLimitBytes)
+        append("\n  },\n  \"warnings\": ").stringArray(session.warnings)
         append(",\n  \"failure_reason\": ").nullable(session.failureReason)
         append("\n}\n")
     }
@@ -100,6 +117,10 @@ object ReportSerializer {
         append("{\n  \"schema_version\": ").append(SCHEMA_VERSION)
         append(",\n  \"report_type\": \"comparison\"")
         append(",\n  \"baseline_session_id\": ").json(comparison.baselineId)
+        append(",\n  \"compatibility\": {")
+        append("\n    \"state\": ").json(comparison.compatibility.state.name)
+        append(",\n    \"warnings\": ").stringArray(comparison.compatibility.warnings)
+        append("\n  }")
         append(",\n  \"candidate_session_id\": ").json(comparison.candidateId)
         append(",\n  \"workloads\": [")
         comparison.workloads.forEachIndexed { index, value ->
@@ -117,9 +138,10 @@ object ReportSerializer {
     }
 
     fun comparisonCsv(comparison: SessionComparison): String = buildString {
-        append("report_schema_version,baseline_session_id,candidate_session_id,workload_kind,compatible,absolute_delta,percentage_delta,improved,confidence,warnings\n")
+        append("report_schema_version,baseline_session_id,candidate_session_id,compatibility_state,compatibility_warnings,workload_kind,compatible,absolute_delta,percentage_delta,improved,confidence,warnings\n")
         comparison.workloads.forEach { value ->
             append(SCHEMA_VERSION).append(',').csv(comparison.baselineId).append(',').csv(comparison.candidateId).append(',')
+                .csv(comparison.compatibility.state.name).append(',').csv(comparison.compatibility.warnings.joinToString("; ")).append(',')
                 .csv(value.kind.name).append(',').append(value.compatible).append(',')
                 .append(value.absoluteDelta ?: "").append(',').append(value.percentageDelta ?: "").append(',')
                 .append(value.improved ?: "").append(',').csv(value.confidence.name).append(',')

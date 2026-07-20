@@ -53,6 +53,7 @@ data class BenchmarkSessionEntity(
     val warnings: String,
     val failureReason: String?,
     val comparisonRole: String,
+    val methodologyMetadata: String = "",
 )
 
 @Entity(
@@ -142,7 +143,7 @@ interface BenchmarkDao {
 
 @Database(
     entities = [BenchmarkSessionEntity::class, WorkloadResultEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class FluxLabDatabase : RoomDatabase() {
@@ -155,10 +156,16 @@ abstract class FluxLabDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE benchmark_sessions ADD COLUMN methodologyMetadata TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun create(context: Context): FluxLabDatabase = Room.databaseBuilder(
             context.applicationContext,
             FluxLabDatabase::class.java,
             "fluxlab.db",
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 }

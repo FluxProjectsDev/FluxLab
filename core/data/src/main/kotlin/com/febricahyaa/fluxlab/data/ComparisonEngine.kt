@@ -1,6 +1,7 @@
 package com.febricahyaa.fluxlab.data
 
 import com.febricahyaa.fluxlab.model.BenchmarkSession
+import com.febricahyaa.fluxlab.model.ComparisonCompatibilityAnalyzer
 import com.febricahyaa.fluxlab.model.Confidence
 import com.febricahyaa.fluxlab.model.SessionComparison
 import com.febricahyaa.fluxlab.model.SessionStatus
@@ -44,6 +45,10 @@ object ComparisonEngine {
                 )
             }
         }
-        return SessionComparison(baseline.id, candidate.id, comparisons, environmentWarnings)
+        val compatibility = ComparisonCompatibilityAnalyzer.analyze(baseline, candidate)
+        return SessionComparison(
+            baseline.id, candidate.id, comparisons,
+            (environmentWarnings + compatibility.warnings).distinct(), compatibility,
+        )
     }
 }
