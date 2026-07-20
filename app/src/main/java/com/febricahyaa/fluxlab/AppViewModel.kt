@@ -42,6 +42,7 @@ data class DashboardState(
     val flux: FluxInstallation = FluxInstallation(),
     val synthesis: SynthesisReadResult = SynthesisReadResult.Unavailable("Not read yet"),
     val telemetry: DeviceTelemetrySnapshot? = null,
+    val frameTelemetry: FrameTelemetrySummary = FrameTelemetrySummary(),
     val cpuHistory: List<Pair<Long, Double?>> = emptyList(),
     val errorCode: String? = null,
 )
@@ -71,7 +72,11 @@ class AppViewModel(application: Application, private val container: AppContainer
                     .collect { snapshot ->
                         val history = (mutableDashboard.value.cpuHistory +
                             (snapshot.elapsedRealtimeMs to snapshot.cpu.totalUsagePercent)).takeLast(60)
-                        mutableDashboard.value = mutableDashboard.value.copy(telemetry = snapshot, cpuHistory = history)
+                        mutableDashboard.value = mutableDashboard.value.copy(
+                            telemetry = snapshot,
+                            frameTelemetry = container.frameTelemetry.snapshot(),
+                            cpuHistory = history,
+                        )
                     }
             }
         }

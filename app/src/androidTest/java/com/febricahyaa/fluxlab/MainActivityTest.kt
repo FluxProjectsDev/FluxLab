@@ -3,7 +3,10 @@ package com.febricahyaa.fluxlab
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,8 +17,14 @@ class MainActivityTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun navigationStartsOnOverview() {
+    fun activityStartsOnOverviewAndRemainsResumed() {
         composeRule.onNodeWithText("FluxLab").assertIsDisplayed()
         composeRule.onNodeWithText("Overview").assertIsDisplayed()
+        composeRule.activityRule.scenario.onActivity { activity ->
+            assertFalse(activity.isFinishing)
+            assertFalse(activity.isDestroyed)
+            assertTrue(activity.window.decorView.isAttachedToWindow)
+            assertTrue(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        }
     }
 }
