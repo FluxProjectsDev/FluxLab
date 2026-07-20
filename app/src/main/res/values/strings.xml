@@ -90,4 +90,12 @@
     <string name="save">Save</string>
     <string name="label">Label</string>
     <string name="monitoring_disabled">Live monitoring is disabled while idle.</string>
+    <string name="cores">cores</string>
+    <string name="gpu_telemetry_available">Identity, frequency, and utilization available</string>
+    <string name="gpu_frequency_inaccessible">GPU identified; frequency inaccessible</string>
+    <string name="gpu_utilization_inaccessible">GPU identified; utilization inaccessible</string>
+    <string name="root_required">Root access required</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="gpu_driver_unavailable">GPU driver path unavailable</string>
+    <string name="gpu_not_identified">GPU not identified</string>
 </resources>

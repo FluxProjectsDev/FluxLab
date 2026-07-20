@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.febricahyaa.fluxlab.model.BenchmarkSession
+import com.febricahyaa.fluxlab.model.GpuCapabilityState
 import com.febricahyaa.fluxlab.model.ReadinessResult
 import com.febricahyaa.fluxlab.model.RootState
 import com.febricahyaa.fluxlab.model.SessionStatus
@@ -98,8 +99,9 @@ fun OverviewScreen(model: AppViewModel) {
             } else {
                 MetricCard(
                     stringResource(R.string.cpu),
-                    telemetry.cpu.totalUsagePercent?.let { format(it, "%") } ?: stringResource(R.string.unknown),
-                    "${telemetry.cpu.coreCount} × ${telemetry.cpu.architecture}",
+                    listOfNotNull(telemetry.cpu.identity.manufacturer, telemetry.cpu.identity.model)
+                        .joinToString("\n").ifBlank { stringResource(R.string.unknown) },
+                    "${telemetry.cpu.coreCount} ${stringResource(R.string.cores)} • ${telemetry.cpu.identity.supportedAbis.joinToString()}",
                 )
                 CpuHistoryChart(state.cpuHistory)
                 MetricCard(
@@ -120,8 +122,9 @@ fun OverviewScreen(model: AppViewModel) {
                 MetricCard(
                     stringResource(R.string.gpu),
                     listOfNotNull(telemetry.gpu.vendor, telemetry.gpu.model).joinToString(" ")
-                        .ifBlank { stringResource(R.string.not_supported) },
-                    telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") },
+                        .ifBlank { gpuCapabilityText(telemetry.gpu.capabilityState) },
+                    telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") }
+                        ?: gpuCapabilityText(telemetry.gpu.capabilityState),
                 )
             }
             sessions.firstOrNull()?.let { session ->
@@ -137,6 +140,17 @@ fun OverviewScreen(model: AppViewModel) {
 }
 
 @Composable
+private fun gpuCapabilityText(state: GpuCapabilityState): String = when (state) {
+    GpuCapabilityState.IDENTIFIED_TELEMETRY_AVAILABLE -> stringResource(R.string.gpu_telemetry_available)
+    GpuCapabilityState.IDENTIFIED_FREQUENCY_INACCESSIBLE -> stringResource(R.string.gpu_frequency_inaccessible)
+    GpuCapabilityState.IDENTIFIED_UTILIZATION_INACCESSIBLE -> stringResource(R.string.gpu_utilization_inaccessible)
+    GpuCapabilityState.ROOT_REQUIRED -> stringResource(R.string.root_required)
+    GpuCapabilityState.PERMISSION_DENIED -> stringResource(R.string.permission_denied)
+    GpuCapabilityState.DRIVER_PATH_UNAVAILABLE -> stringResource(R.string.gpu_driver_unavailable)
+    GpuCapabilityState.GPU_NOT_IDENTIFIED -> stringResource(R.string.gpu_not_identified)
+    GpuCapabilityState.UNSUPPORTED_DEVICE_TOPOLOGY -> stringResource(R.string.not_supported)
+}
+
 fun TestsScreen(model: AppViewModel) {
     val settings by model.settings.collectAsStateWithLifecycle()
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()

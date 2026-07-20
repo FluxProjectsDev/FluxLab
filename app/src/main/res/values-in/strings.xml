@@ -90,4 +90,12 @@
     <string name="save">Simpan</string>
     <string name="label">Label</string>
     <string name="monitoring_disabled">Pemantauan langsung dinonaktifkan saat tidak aktif.</string>
+    <string name="cores">inti</string>
+    <string name="gpu_telemetry_available">Identitas, frekuensi, dan utilisasi tersedia</string>
+    <string name="gpu_frequency_inaccessible">GPU teridentifikasi; frekuensi tidak dapat diakses</string>
+    <string name="gpu_utilization_inaccessible">GPU teridentifikasi; utilisasi tidak dapat diakses</string>
+    <string name="root_required">Akses root diperlukan</string>
+    <string name="permission_denied">Izin ditolak</string>
+    <string name="gpu_driver_unavailable">Jalur driver GPU tidak tersedia</string>
+    <string name="gpu_not_identified">GPU tidak teridentifikasi</string>
 </resources>

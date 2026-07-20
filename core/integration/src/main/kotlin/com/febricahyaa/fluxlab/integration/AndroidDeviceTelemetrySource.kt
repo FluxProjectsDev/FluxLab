@@ -11,11 +11,14 @@ import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.febricahyaa.fluxlab.model.BatteryTelemetry
 import com.febricahyaa.fluxlab.model.CpuCoreTelemetry
+import com.febricahyaa.fluxlab.model.CpuIdentity
+import com.febricahyaa.fluxlab.model.CpuIdentityProvider
 import com.febricahyaa.fluxlab.model.CpuTelemetry
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySource
-import com.febricahyaa.fluxlab.model.GpuTelemetry
+import com.febricahyaa.fluxlab.model.GpuCapabilityProvider
 import com.febricahyaa.fluxlab.model.MemoryTelemetry
+import com.febricahyaa.fluxlab.model.RootGateway
 import com.febricahyaa.fluxlab.model.SystemTelemetry
 import com.febricahyaa.fluxlab.model.ThermalTelemetry
 import com.febricahyaa.fluxlab.model.ThermalZone
@@ -28,19 +31,25 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
-class AndroidDeviceTelemetrySource(context: Context) : DeviceTelemetrySource {
+class AndroidDeviceTelemetrySource(
+    context: Context,
+    rootGateway: RootGateway? = null,
+    private val cpuIdentityProvider: CpuIdentityProvider = AndroidCpuIdentityProvider(),
+    private val gpuCapabilityProvider: GpuCapabilityProvider = AndroidGpuCapabilityProvider(rootGateway = rootGateway),
+) : DeviceTelemetrySource {
     private val appContext = context.applicationContext
     private var previousCpu: Map<String, CpuTimes> = emptyMap()
 
     override suspend fun sample(): DeviceTelemetrySnapshot = withContext(Dispatchers.IO) {
         val battery = readBattery()
+        val cpuIdentity = cpuIdentityProvider.identify()
         DeviceTelemetrySnapshot(
             elapsedRealtimeMs = SystemClock.elapsedRealtime(),
-            cpu = readCpu(),
+            cpu = readCpu(cpuIdentity),
             memory = readMemory(),
             thermal = readThermal(battery),
             battery = battery,
-            gpu = readGpu(),
+            gpu = gpuCapabilityProvider.sample(),
             system = readSystem(),
         )
     }
@@ -53,11 +62,11 @@ class AndroidDeviceTelemetrySource(context: Context) : DeviceTelemetrySource {
         }
     }
 
-    private fun readCpu(): CpuTelemetry {
+    private fun readCpu(identity: CpuIdentity): CpuTelemetry {
         val current = readText("/proc/stat")?.let(ProcStatParser::parse).orEmpty()
         val previous = previousCpu
         previousCpu = current
-        val count = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        val count = identity.coreCount.coerceAtLeast(1)
         val cores = (0 until count).map { index ->
             val directory = "/sys/devices/system/cpu/cpu$index/cpufreq"
             CpuCoreTelemetry(
@@ -73,8 +82,9 @@ class AndroidDeviceTelemetrySource(context: Context) : DeviceTelemetrySource {
         return CpuTelemetry(
             totalUsagePercent = ProcStatParser.usage(previous["cpu"], current["cpu"]),
             cores = cores,
-            architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: System.getProperty("os.arch").orEmpty(),
+            architecture = identity.supportedAbis.firstOrNull() ?: System.getProperty("os.arch").orEmpty(),
             coreCount = count,
+            identity = identity,
         )
     }
 
@@ -154,40 +164,6 @@ class AndroidDeviceTelemetrySource(context: Context) : DeviceTelemetrySource {
         val source = evidenceZone?.let { "thermal zone: ${it.name}" }
             ?: battery.temperatureCelsius?.let { "battery sensor" }
         return ThermalTelemetry(status, headroom, zones, battery.temperatureCelsius, primary, source)
-    }
-
-    private fun readGpu(): GpuTelemetry {
-        val kgsl = "/sys/class/kgsl/kgsl-3d0"
-        val kgslCurrent = readLong("$kgsl/gpuclk")
-        if (kgslCurrent != null) {
-            return GpuTelemetry(
-                vendor = "Qualcomm",
-                model = readText("$kgsl/gpu_model")?.trim(),
-                currentFrequencyHz = kgslCurrent,
-                minimumFrequencyHz = readLong("$kgsl/devfreq/min_freq"),
-                maximumFrequencyHz = readLong("$kgsl/devfreq/max_freq"),
-                frequencySource = "$kgsl/gpuclk",
-            )
-        }
-        val devfreq = File("/sys/class/devfreq").listFiles()?.firstOrNull {
-            val name = it.name.lowercase()
-            "gpu" in name || "mali" in name
-        }
-        val current = devfreq?.let { readLong(File(it, "cur_freq").path) }
-        val name = devfreq?.name?.lowercase().orEmpty()
-        val vendor = when {
-            "mali" in name -> "Arm"
-            "gpu" in name -> Build.HARDWARE.takeIf(String::isNotBlank)
-            else -> null
-        }
-        return GpuTelemetry(
-            vendor = vendor,
-            model = devfreq?.name,
-            currentFrequencyHz = current,
-            minimumFrequencyHz = devfreq?.let { readLong(File(it, "min_freq").path) },
-            maximumFrequencyHz = devfreq?.let { readLong(File(it, "max_freq").path) },
-            frequencySource = current?.let { File(devfreq, "cur_freq").path },
-        )
     }
 
     @Suppress("DEPRECATION")

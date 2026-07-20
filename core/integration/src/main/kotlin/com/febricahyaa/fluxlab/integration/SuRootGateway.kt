@@ -93,6 +93,14 @@ class SuRootGateway(private val timeoutMs: Long = 4_000L) : RootGateway {
             RootCommand.READ_RUNTIME_STATUS to "cat /data/adb/.config/flux/runtime_status.json",
             RootCommand.READ_SYNTHESIS_STATUS to "cat /data/adb/.config/flux/synthesis_core.json",
             RootCommand.STAT_SYNTHESIS_STATUS to "stat -c %Y /data/adb/.config/flux/synthesis_core.json",
+            RootCommand.READ_KGSL_GPU_MODEL to "cat /sys/class/kgsl/kgsl-3d0/gpu_model",
+            RootCommand.READ_KGSL_GPUCLK to "cat /sys/class/kgsl/kgsl-3d0/gpuclk",
+            RootCommand.READ_KGSL_MAX_GPUCLK to "cat /sys/class/kgsl/kgsl-3d0/max_gpuclk",
+            RootCommand.READ_KGSL_DEVFREQ_CUR to "cat /sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
+            RootCommand.READ_KGSL_DEVFREQ_MAX to "cat /sys/class/kgsl/kgsl-3d0/devfreq/max_freq",
+            RootCommand.READ_KGSL_DEVFREQ_MIN to "cat /sys/class/kgsl/kgsl-3d0/devfreq/min_freq",
+            RootCommand.READ_KGSL_AVAILABLE_FREQUENCIES to "cat /sys/class/kgsl/kgsl-3d0/devfreq/available_frequencies",
+            RootCommand.READ_KGSL_GPUBUSY to "cat /sys/class/kgsl/kgsl-3d0/gpubusy",
             RootCommand.FIND_FLUX_DAEMON to "pidof fluxd",
         )
     }

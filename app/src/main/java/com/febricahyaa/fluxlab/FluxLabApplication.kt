@@ -23,7 +23,7 @@ class FluxLabApplication : Application() {
             rootGateway = root,
             fluxReader = FluxRuntimeAdapter(root),
             synthesisReader = SynthesisCoreAdapter(root),
-            telemetrySource = AndroidDeviceTelemetrySource(this),
+            telemetrySource = AndroidDeviceTelemetrySource(this, root),
             frameTelemetry = FrameTelemetry(),
             reportExporter = VersionedReportExporter(),
             settingsStore = SettingsStore(this),
