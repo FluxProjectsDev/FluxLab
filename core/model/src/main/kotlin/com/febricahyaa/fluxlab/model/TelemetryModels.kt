@@ -71,6 +71,8 @@ data class ThermalTelemetry(
     val batteryTemperatureCelsius: Double?,
     val primaryTemperatureCelsius: Double?,
     val primarySource: String?,
+    val eligibility: ThermalEligibility = ThermalEligibility.THERMAL_STATUS_UNAVAILABLE,
+    val warnings: List<String> = emptyList(),
 )
 
 enum class BatteryPowerConfidence { HIGH, MEDIUM, LOW, UNAVAILABLE }
@@ -94,6 +96,9 @@ data class BatteryTelemetry(
     val chargingState: ChargingState = ChargingState.UNKNOWN,
     val powerConfidence: BatteryPowerConfidence = BatteryPowerConfidence.UNAVAILABLE,
     val powerWarnings: List<String> = emptyList(),
+    val normalizedCurrentAmps: Double? = currentMicroamps?.div(1_000_000.0),
+    val normalizedVoltageVolts: Double? = voltageMillivolts?.div(1_000.0),
+    val powerSource: String? = null,
 )
 
 enum class GpuCapabilityState {

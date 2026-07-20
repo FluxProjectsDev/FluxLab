@@ -1,6 +1,9 @@
 package com.febricahyaa.fluxlab.benchmark
 
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot
+import com.febricahyaa.fluxlab.model.BenchmarkPreset
+import com.febricahyaa.fluxlab.model.ThermalEligibility
+import com.febricahyaa.fluxlab.model.ThermalEligibilityEvaluator
 import com.febricahyaa.fluxlab.model.ReadinessResult
 import com.febricahyaa.fluxlab.model.SnapshotFreshness
 
@@ -10,6 +13,7 @@ data class ReadinessContext(
     val benchmarkRunning: Boolean,
     val monitoringConflict: Boolean,
     val fluxFreshness: SnapshotFreshness,
+    val preset: BenchmarkPreset = BenchmarkPreset.QUICK,
 )
 
 object ReadinessGuard {
@@ -21,7 +25,13 @@ object ReadinessGuard {
         if (context.benchmarkRunning) blocked += "Another benchmark is already running"
         if (context.availableStorageBytes < MINIMUM_STORAGE) blocked += "Critically low private storage"
         val thermal = context.telemetry?.thermal?.androidStatus
-        if (thermal != null && thermal >= 3) blocked += "Android reports severe or higher thermal pressure"
+        val thermalAssessment = ThermalEligibilityEvaluator.evaluate(thermal, context.preset)
+        when (thermalAssessment.eligibility) {
+            ThermalEligibility.BLOCKED_BY_THERMAL_CONDITION -> blocked += thermalAssessment.reason
+            ThermalEligibility.THERMAL_STATUS_UNAVAILABLE -> warnings += thermalAssessment.reason
+            ThermalEligibility.READY_WITH_WARNING, ThermalEligibility.COOLDOWN_RECOMMENDED -> warnings += thermalAssessment.reason
+            ThermalEligibility.READY -> Unit
+        }
         if (context.monitoringConflict) warnings += "Another live monitoring session is active"
         val battery = context.telemetry?.battery
         val batteryLevel = battery?.levelPercent

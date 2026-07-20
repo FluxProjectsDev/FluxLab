@@ -10,6 +10,8 @@ import android.os.SystemClock
 import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.febricahyaa.fluxlab.model.BatteryTelemetry
+import com.febricahyaa.fluxlab.model.BenchmarkPreset
+import com.febricahyaa.fluxlab.model.ThermalEligibilityEvaluator
 import com.febricahyaa.fluxlab.model.CpuCoreTelemetry
 import com.febricahyaa.fluxlab.model.CpuIdentity
 import com.febricahyaa.fluxlab.model.CpuIdentityProvider
@@ -22,6 +24,10 @@ import com.febricahyaa.fluxlab.model.RootGateway
 import com.febricahyaa.fluxlab.model.SystemTelemetry
 import com.febricahyaa.fluxlab.model.ThermalTelemetry
 import com.febricahyaa.fluxlab.model.ThermalZone
+import com.febricahyaa.fluxlab.model.ChargingState
+import com.febricahyaa.fluxlab.model.ThermalEligibility
+import com.febricahyaa.fluxlab.integration.BatteryCurrentUnit
+import com.febricahyaa.fluxlab.integration.BatteryVoltageUnit
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -137,8 +143,15 @@ class AndroidDeviceTelemetrySource(
         val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)?.toLong()?.takeIf { it > 0 }
         val counter = manager?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
             ?.takeUnless { it == Long.MIN_VALUE }
-        val power = BatteryPowerEstimator.watts(current, voltage)
-        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, power, power != null)
+        val state = when (status) {
+            BatteryManager.BATTERY_STATUS_CHARGING -> ChargingState.CHARGING
+            BatteryManager.BATTERY_STATUS_FULL -> ChargingState.FULL
+            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> ChargingState.NOT_CHARGING
+            BatteryManager.BATTERY_STATUS_DISCHARGING -> ChargingState.DISCHARGING
+            else -> ChargingState.UNKNOWN
+        }
+        val reading = BatteryPowerNormalizer.read(current, BatteryCurrentUnit.MICROAMPERES, voltage, BatteryVoltageUnit.MILLIVOLTS, state)
+        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, reading.calculatedPowerWatts, reading.calculatedPowerWatts != null, currentRaw = current, currentUnitSource = reading.currentUnitSource, voltageRaw = voltage, voltageUnitSource = reading.voltageUnitSource, calculatedPowerWatts = reading.calculatedPowerWatts, chargingState = state, powerConfidence = reading.powerConfidence, powerWarnings = reading.powerWarnings, normalizedCurrentAmps = reading.normalizedCurrentAmps, normalizedVoltageVolts = reading.normalizedVoltageVolts, powerSource = reading.powerSource)
     }
 
     private fun readThermal(battery: BatteryTelemetry): ThermalTelemetry {
@@ -152,9 +165,8 @@ class AndroidDeviceTelemetrySource(
                 val type = readText(File(directory, "type").path)?.trim()?.takeIf(String::isNotEmpty)
                     ?: return@mapNotNull null
                 val raw = readLong(File(directory, "temp").path)
-                val celsius = raw?.let { if (kotlin.math.abs(it) > 500) it / 1_000.0 else it.toDouble() }
-                    ?.takeIf { it in -40.0..200.0 }
-                ThermalZone(type, celsius, directory.path)
+                val normalized = raw?.let(ThermalSensorParser::normalize)
+                ThermalZone(type, normalized?.celsius, directory.path, normalized?.rawValue, normalized?.unitSource ?: com.febricahyaa.fluxlab.model.TemperatureUnitSource.UNKNOWN)
             }.orEmpty()
         val evidenceZone = zones.firstOrNull { zone ->
             val type = zone.name.lowercase()
@@ -163,7 +175,8 @@ class AndroidDeviceTelemetrySource(
         val primary = evidenceZone?.temperatureCelsius ?: battery.temperatureCelsius
         val source = evidenceZone?.let { "thermal zone: ${it.name}" }
             ?: battery.temperatureCelsius?.let { "battery sensor" }
-        return ThermalTelemetry(status, headroom, zones, battery.temperatureCelsius, primary, source)
+        val eligibility = status?.let { ThermalEligibilityEvaluator.evaluate(it, BenchmarkPreset.QUICK).eligibility } ?: ThermalEligibility.THERMAL_STATUS_UNAVAILABLE
+        return ThermalTelemetry(status, headroom, zones, battery.temperatureCelsius, primary, source, eligibility, emptyList())
     }
 
     @Suppress("DEPRECATION")

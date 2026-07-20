@@ -104,7 +104,7 @@ data class NormalizedTemperature(
 /** Normalizes common Android thermal sensor encodings without guessing a sensor type. */
 object ThermalTemperatureNormalizer {
     private const val MIN_CELSIUS = -40.0
-    private const val MAX_CELSIUS = 200.0
+    private const val MAX_CELSIUS = 150.0
 
     fun normalize(rawValue: Long): NormalizedTemperature? {
         val magnitude = kotlin.math.abs(rawValue)
