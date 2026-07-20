@@ -47,7 +47,7 @@ Requirements: JDK 21, Android SDK 36, NDK `28.2.13676358`, and CMake/Ninja. On a
 
 The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
-Google currently distributes the Linux Android tools used here as x86_64 binaries. The repository wrapper transparently runs AAPT2 directly on x86_64. For an arm64 Linux development host, install `qemu-x86_64`; the project also uses native Clang with the official NDK sysroot. These host adaptations do not affect Android runtime code or x86_64 CI.
+Google currently distributes the Linux Android tools used here as x86_64 binaries. FluxLab uses the standard Gradle wrapper and lets the Android Gradle Plugin resolve AAPT2; x86_64 Linux is therefore the supported CI build host. Arm64 Linux developers need an x86_64-compatible Android build-tools execution environment. The project uses native Clang with the official NDK sysroot for its Android native workloads.
 
 ## Privacy and reports
 
