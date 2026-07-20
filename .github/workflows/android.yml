@@ -65,9 +65,9 @@ jobs:
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app-debug.apk.sha256
           {
             echo "### Debug APK SHA-256"
-            echo "```"
+            echo '```'
             cat app-debug.apk.sha256
-            echo "```"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload FluxLab debug APK
         if: success()
