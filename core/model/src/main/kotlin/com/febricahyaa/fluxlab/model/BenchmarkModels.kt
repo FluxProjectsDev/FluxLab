@@ -2,17 +2,58 @@ package com.febricahyaa.fluxlab.model
 
 import kotlinx.coroutines.flow.Flow
 
-enum class WorkloadKind(val higherIsBetter: Boolean, val unit: String) {
-    CPU_INTEGER(true, "ops/s"),
-    CPU_FLOATING_POINT(true, "ops/s"),
-    CPU_MULTI_THREADED(true, "ops/s"),
-    MEMORY_COPY(true, "MiB/s"),
-    MEMORY_FILL(true, "MiB/s"),
-    MEMORY_LATENCY(false, "ns/access"),
-    STORAGE_WRITE(true, "MiB/s"),
-    STORAGE_READ(true, "MiB/s"),
-    STORAGE_FSYNC(false, "ms/fsync"),
+enum class MetricDirection { HIGHER_IS_BETTER, LOWER_IS_BETTER, UNKNOWN }
+
+enum class WorkloadKind(val direction: MetricDirection, val unit: String) {
+    CPU_INTEGER(MetricDirection.HIGHER_IS_BETTER, "ops/s"),
+    CPU_FLOATING_POINT(MetricDirection.HIGHER_IS_BETTER, "ops/s"),
+    CPU_MULTI_THREADED(MetricDirection.HIGHER_IS_BETTER, "ops/s"),
+    MEMORY_COPY(MetricDirection.HIGHER_IS_BETTER, "MiB/s"),
+    MEMORY_FILL(MetricDirection.HIGHER_IS_BETTER, "MiB/s"),
+    MEMORY_LATENCY(MetricDirection.LOWER_IS_BETTER, "ns/access"),
+    STORAGE_WRITE(MetricDirection.HIGHER_IS_BETTER, "MiB/s"),
+    STORAGE_READ(MetricDirection.HIGHER_IS_BETTER, "MiB/s"),
+    STORAGE_FSYNC(MetricDirection.LOWER_IS_BETTER, "ms/fsync");
+
+    val higherIsBetter: Boolean get() = direction == MetricDirection.HIGHER_IS_BETTER
 }
+
+enum class BenchmarkPreset { QUICK, STANDARD, EXTENDED }
+
+data class BenchmarkPresetConfig(
+    val preset: BenchmarkPreset,
+    val warmUpCount: Int,
+    val measuredRepetitionCount: Int,
+    val workloadScale: Int,
+    val interTestCooldownMs: Long,
+    val maximumDurationMs: Long,
+    val cancellationBehavior: String,
+    val storageAllocationLimitBytes: Long,
+) {
+    companion object {
+        private const val MIB = 1_048_576L
+
+        fun forPreset(preset: BenchmarkPreset): BenchmarkPresetConfig = when (preset) {
+            BenchmarkPreset.QUICK -> BenchmarkPresetConfig(
+                preset, warmUpCount = 1, measuredRepetitionCount = 5, workloadScale = 1,
+                interTestCooldownMs = 250, maximumDurationMs = 45_000,
+                cancellationBehavior = "cooperative_cleanup", storageAllocationLimitBytes = 32 * MIB,
+            )
+            BenchmarkPreset.STANDARD -> BenchmarkPresetConfig(
+                preset, warmUpCount = 2, measuredRepetitionCount = 9, workloadScale = 2,
+                interTestCooldownMs = 1_000, maximumDurationMs = 300_000,
+                cancellationBehavior = "cooperative_cleanup", storageAllocationLimitBytes = 192 * MIB,
+            )
+            BenchmarkPreset.EXTENDED -> BenchmarkPresetConfig(
+                preset, warmUpCount = 3, measuredRepetitionCount = 15, workloadScale = 4,
+                interTestCooldownMs = 2_000, maximumDurationMs = 900_000,
+                cancellationBehavior = "cooperative_cleanup", storageAllocationLimitBytes = 384 * MIB,
+            )
+        }
+    }
+}
+
+enum class VariabilityClassification { STABLE, ACCEPTABLE, NOISY, UNRELIABLE }
 
 data class Statistics(
     val median: Double,
@@ -20,6 +61,10 @@ data class Statistics(
     val maximum: Double,
     val standardDeviation: Double,
     val coefficientOfVariation: Double?,
+    val sampleCount: Int = 0,
+    val arithmeticMean: Double = median,
+    val p95: Double? = null,
+    val variability: VariabilityClassification = VariabilityClassification.UNRELIABLE,
 )
 
 data class WorkloadResult(
@@ -33,7 +78,8 @@ data class WorkloadResult(
     val threadCount: Int = 1,
     val affinityForced: Boolean = false,
     val warnings: List<String> = emptyList(),
-)
+    val excludedSampleIndices: List<Int> = emptyList(),
+) 
 
 enum class SessionStatus { PREPARING, WARMING_UP, RUNNING, COOLING_DOWN, COMPLETED, CANCELLED, FAILED }
 enum class ComparisonRole { NONE, BASELINE, CANDIDATE }
@@ -55,6 +101,7 @@ data class BenchmarkEnvironment(
     val androidThermalStatus: Int?,
     val thermalHeadroomSamples: List<Double>,
     val refreshRateHz: Double?,
+    val presetConfiguration: BenchmarkPresetConfig = BenchmarkPresetConfig.forPreset(BenchmarkPreset.QUICK),
 )
 
 data class BenchmarkSession(
