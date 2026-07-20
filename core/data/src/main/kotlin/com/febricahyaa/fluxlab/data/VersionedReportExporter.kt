@@ -100,10 +100,20 @@ object ReportSerializer {
     }
 
     fun sessionCsv(session: BenchmarkSession): String = buildString {
-        append("report_schema_version,session_id,session_status,workload_kind,workload_version,unit,repetition_index,value,duration_ns,median,minimum,maximum,standard_deviation,coefficient_of_variation\n")
+        append("report_schema_version,session_id,session_status,application_version,device_manufacturer,device_model,android_fingerprint,flux_installed,flux_version_name,flux_active_profile,synthesis_core_available,charging,battery_level_percent,android_thermal_status,refresh_rate_hz,methodology_id,methodology_version,workload_contract_version,statistics_version,telemetry_schema_version,preset_definition_version,storage_methodology_version,metric_definition_version,workload_kind,workload_version,unit,repetition_index,value,duration_ns,median,minimum,maximum,standard_deviation,coefficient_of_variation\n")
         session.workloadResults.forEach { result ->
             result.repetitions.forEachIndexed { index, value ->
                 append(SCHEMA_VERSION).append(',').csv(session.id).append(',').csv(session.status.name).append(',')
+                    .csv(session.environment.appVersion).append(',').csv(session.environment.deviceManufacturer).append(',')
+                    .csv(session.environment.deviceModel).append(',').csv(session.environment.androidFingerprint).append(',')
+                    .append(session.environment.flux.installed).append(',').csv(session.environment.flux.versionName ?: "").append(',')
+                    .csv(session.environment.flux.activeProfile ?: "").append(',').append(session.environment.synthesisAvailable).append(',')
+                    .csv(session.environment.charging?.toString() ?: "").append(',').append(session.environment.batteryLevel ?: "").append(',')
+                    .append(session.environment.androidThermalStatus ?: "").append(',').append(session.environment.refreshRateHz ?: "").append(',')
+                    .csv(session.methodology.methodologyId).append(',').append(session.methodology.methodologyVersion).append(',')
+                    .append(result.workloadVersion).append(',').append(session.methodology.statisticsVersion).append(',')
+                    .append(session.methodology.telemetrySchemaVersion).append(',').append(session.methodology.presetDefinitionVersion).append(',')
+                    .append(session.methodology.storageMethodologyVersion).append(',').append(session.methodology.metricDefinitionVersion).append(',')
                     .csv(result.kind.name).append(',').append(result.workloadVersion).append(',').csv(result.unit).append(',')
                     .append(index).append(',').append(value).append(',').append(result.durationsNs.getOrNull(index) ?: "")
                     .append(',').append(result.statistics.median).append(',').append(result.statistics.minimum)
