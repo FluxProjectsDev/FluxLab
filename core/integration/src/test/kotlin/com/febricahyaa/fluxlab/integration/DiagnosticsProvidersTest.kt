@@ -17,7 +17,7 @@ import org.junit.Test
 
 class DiagnosticsProvidersTest {
     @Test fun chargeCounterNormalizesMicroAmpHoursToMilliAmpHours() {
-        assertEquals(3140.0, BatteryCapacityNormalizer.toMilliAmpHours(3_140_000, BatteryCapacityUnit.MICROAMP_HOURS), 0.001)
+        assertEquals(3140.0, BatteryCapacityNormalizer.toMilliAmpHours(3_140_000, BatteryCapacityUnit.MICROAMP_HOURS)!!, 0.001)
     }
 
     @Test fun energyCapacityIsNotConvertedWithoutVoltageBasis() {
