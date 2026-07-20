@@ -10,13 +10,14 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.zip.CRC32
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Bounded app-private storage measurements; this is not a physical UFS benchmark. */
 class StorageBenchmarkSuite(private val cacheDirectory: File) {
     suspend fun run(config: BenchmarkPresetConfig = BenchmarkPresetConfig.forPreset(BenchmarkPreset.QUICK)): List<WorkloadResult> = withContext(Dispatchers.IO) {
-        ensureActive()
+        currentCoroutineContext().ensureActive()
         require(config.storageAllocationLimitBytes > 0L) { "Storage allocation limit must be positive" }
         require(cacheDirectory.exists() || cacheDirectory.mkdirs()) { "FluxLab cache directory is unavailable" }
         require(cacheDirectory.isDirectory && cacheDirectory.canWrite()) { "FluxLab cache directory is not writable" }
@@ -51,7 +52,7 @@ class StorageBenchmarkSuite(private val cacheDirectory: File) {
         val values = mutableListOf<Double>()
         val durations = mutableListOf<Long>()
         repeat(repetitions) {
-            ensureActive()
+            currentCoroutineContext().ensureActive()
             val start = SystemClock.elapsedRealtimeNanos()
             FileOutputStream(file, false).use { output -> output.write(data); output.flush() }
             val duration = SystemClock.elapsedRealtimeNanos() - start
@@ -67,14 +68,14 @@ class StorageBenchmarkSuite(private val cacheDirectory: File) {
         val values = mutableListOf<Double>()
         val durations = mutableListOf<Long>()
         repeat(repetitions) {
-            ensureActive()
+            currentCoroutineContext().ensureActive()
             val crc = CRC32()
             val buffer = ByteArray(256 * 1024)
             var bytes = 0L
             val start = SystemClock.elapsedRealtimeNanos()
             FileInputStream(file).use { input ->
                 while (true) {
-                    ensureActive()
+                    currentCoroutineContext().ensureActive()
                     val count = input.read(buffer)
                     if (count < 0) break
                     if (count > 0) { crc.update(buffer, 0, count); bytes += count }
@@ -96,7 +97,7 @@ class StorageBenchmarkSuite(private val cacheDirectory: File) {
         val durations = mutableListOf<Long>()
         val expectedChecksum = StorageIntegrity.checksum(data)
         repeat(repetitions) {
-            ensureActive()
+            currentCoroutineContext().ensureActive()
             FileOutputStream(file, false).use { output ->
                 output.write(data); output.flush()
                 val start = SystemClock.elapsedRealtimeNanos()
