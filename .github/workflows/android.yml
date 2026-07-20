@@ -58,12 +58,32 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace lintDebug
       - name: Compile AndroidTest APK
         run: ./gradlew --no-daemon --stacktrace assembleDebugAndroidTest
+      - name: Calculate debug APK SHA-256
+        if: success()
+        shell: bash
+        run: |
+          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app-debug.apk.sha256
+          {
+            echo "### Debug APK SHA-256"
+            echo "```"
+            cat app-debug.apk.sha256
+            echo "```"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload FluxLab debug APK
         if: success()
         uses: actions/upload-artifact@v6
         with:
           name: fluxlab-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app-debug.apk.sha256
+          if-no-files-found: error
+      - name: Upload AndroidTest APK
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fluxlab-debug-androidTest-apk
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           if-no-files-found: error
       - name: Upload test and lint reports
         if: always()

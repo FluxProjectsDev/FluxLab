@@ -14,9 +14,9 @@ The native implementation uses C++20, `std::chrono::steady_clock`, observable ch
 
 ## Storage workloads
 
-Storage uses a temporary file in FluxLab's private cache, never the Flux module directory. A warm-up write is followed by three 8 MiB sequential writes, reads, and bounded 1 MiB fsync work. The maximum completed write request is approximately 29 MiB. Cleanup runs in `finally` and before later sessions to remove interrupted leftovers.
+Storage uses a bounded temporary file in FluxLab's private cache, never the Flux module directory. The exact preset configuration controls warm-up count, measured repetitions, workload size, and allocation ceiling. Before allocation, FluxLab checks usable private space and reserves a 32 MiB safety margin (or the configured margin). Cancellation and failures clean up recognized `fluxlab-benchmark-` and legacy `quick-test-` files; startup cleanup never touches unrelated files.
 
-Storage numbers include Android filesystem, cache, encryption, and device-state effects. They are explicitly not advertised as raw or full-device storage performance.
+The stable report identifiers remain `STORAGE_WRITE`, `STORAGE_READ`, and `STORAGE_FSYNC`, while user-facing labels are **Buffered sequential write**, **Buffered app-file read**, and **Durable write with fsync**. Buffered write, read, and fsync timing are separated; each read validates the deterministic CRC32 checksum. The read result is an app-level buffered read, not guaranteed physical UFS speed: Linux page cache, filesystem, encryption, controller cache, background I/O, and thermal state can all affect it. FluxLab never drops global page caches or changes kernel VM state.
 
 ## Statistics
 
