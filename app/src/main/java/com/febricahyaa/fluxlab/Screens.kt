@@ -301,7 +301,7 @@ fun ReportsScreen(model: AppViewModel) {
                                 Text(session.label)
                                 Text(DateFormat.getDateTimeInstance().format(Date(session.startedAtEpochMs)), style = MaterialTheme.typography.bodySmall)
                             }
-                            RadioButton(checked = false, onClick = { model.selectReportSession(session.id) })
+                            RadioButton(selected = false, onClick = { model.selectReportSession(session.id) })
                         }
                     }
                 }
