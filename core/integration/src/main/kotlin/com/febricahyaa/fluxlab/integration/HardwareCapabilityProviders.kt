@@ -223,11 +223,18 @@ class AndroidCpuIdentityProvider(
             if (raw.isNullOrBlank()) return null
             val indexes = mutableSetOf<Int>()
             for (segment in raw.trim().split(',')) {
-                val bounds = segment.split('-', limit = 2).mapNotNull(String::toIntOrNull)
-                when (bounds.size) {
-                    1 -> indexes += bounds[0]
-                    2 -> if (bounds[0] in 0..1023 && bounds[1] in bounds[0]..1023) indexes += bounds[0]..bounds[1] else return null
-                    else -> return null
+                val trimmed = segment.trim()
+                if (trimmed.isEmpty()) return null
+                if ('-' in trimmed) {
+                    val parts = trimmed.split('-', limit = 2)
+                    val start = parts.getOrNull(0)?.toIntOrNull()
+                    val end = parts.getOrNull(1)?.toIntOrNull()
+                    if (start == null || end == null || start !in 0..1023 || end !in start..1023) return null
+                    indexes += start..end
+                } else {
+                    val index = trimmed.toIntOrNull() ?: return null
+                    if (index !in 0..1023) return null
+                    indexes += index
                 }
             }
             return indexes.size.takeIf { it > 0 }

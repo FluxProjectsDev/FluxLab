@@ -24,13 +24,18 @@ object ReadinessGuard {
         val warnings = mutableListOf<String>()
         if (context.benchmarkRunning) blocked += "Another benchmark is already running"
         if (context.availableStorageBytes < MINIMUM_STORAGE) blocked += "Critically low private storage"
-        val thermal = context.telemetry?.thermal?.androidStatus
-        val thermalAssessment = ThermalEligibilityEvaluator.evaluate(thermal, context.preset)
-        when (thermalAssessment.eligibility) {
-            ThermalEligibility.BLOCKED_BY_THERMAL_CONDITION -> blocked += thermalAssessment.reason
-            ThermalEligibility.THERMAL_STATUS_UNAVAILABLE -> warnings += thermalAssessment.reason
-            ThermalEligibility.READY_WITH_WARNING, ThermalEligibility.COOLDOWN_RECOMMENDED -> warnings += thermalAssessment.reason
-            ThermalEligibility.READY -> Unit
+        // A missing snapshot means the telemetry pipeline has not produced a
+        // sample yet; do not turn that transient state into an extra readiness
+        // warning. Once a snapshot exists, a missing Android status is an
+        // explicit thermal-status-unavailable condition.
+        context.telemetry?.let { telemetry ->
+            val thermalAssessment = ThermalEligibilityEvaluator.evaluate(telemetry.thermal.androidStatus, context.preset)
+            when (thermalAssessment.eligibility) {
+                ThermalEligibility.BLOCKED_BY_THERMAL_CONDITION -> blocked += thermalAssessment.reason
+                ThermalEligibility.THERMAL_STATUS_UNAVAILABLE -> warnings += thermalAssessment.reason
+                ThermalEligibility.READY_WITH_WARNING, ThermalEligibility.COOLDOWN_RECOMMENDED -> warnings += thermalAssessment.reason
+                ThermalEligibility.READY -> Unit
+            }
         }
         if (context.monitoringConflict) warnings += "Another live monitoring session is active"
         val battery = context.telemetry?.battery
