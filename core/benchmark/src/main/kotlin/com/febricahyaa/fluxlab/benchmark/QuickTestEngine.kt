@@ -30,7 +30,7 @@ class QuickTestEngine(
 ) {
     private val running = AtomicBoolean(false)
     private var activeWorkload: BenchmarkWorkload? = null
-    private val mutableProgress = MutableStateFlow(BenchmarkProgress(null, SessionStatus.PREPARING, null, 0, 1))
+    private val mutableProgress = MutableStateFlow(BenchmarkProgress(null, SessionStatus.PREPARING, null, 0, 1, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.PREFLIGHT))
     val progress: StateFlow<BenchmarkProgress> = mutableProgress.asStateFlow()
     val isRunning: Boolean get() = running.get()
 
@@ -78,12 +78,14 @@ class QuickTestEngine(
         monitoring(true)
         storage.cleanupInterruptedFiles()
         try {
+            mutableProgress.value = BenchmarkProgress(id, SessionStatus.PREPARING, null, 0, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.COUNTDOWN, totalWorkloads = total, visualMode = com.febricahyaa.fluxlab.model.BenchmarkVisualMode.REDUCED)
+            delay(500)
             session = update(session, SessionStatus.WARMING_UP, results, warnings, null, headrooms, peakBattery)
             nativeKinds.forEachIndexed { index, kind ->
-                mutableProgress.value = BenchmarkProgress(id, SessionStatus.WARMING_UP, kind, index, total)
+                mutableProgress.value = BenchmarkProgress(id, SessionStatus.WARMING_UP, kind, index, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.WARMUP, workloadIndex = index, totalWorkloads = total, totalRepetitions = config.warmUpCount)
                 activeWorkload = NativeBenchmarkWorkload(kind, config)
                 session = update(session, SessionStatus.RUNNING, results, warnings, null, headrooms, peakBattery)
-                mutableProgress.value = BenchmarkProgress(id, SessionStatus.RUNNING, kind, index, total)
+                mutableProgress.value = BenchmarkProgress(id, SessionStatus.RUNNING, kind, index, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.RUNNING, workloadIndex = index, totalWorkloads = total, currentRepetition = config.measuredRepetitionCount, totalRepetitions = config.measuredRepetitionCount)
                 results += requireNotNull(activeWorkload).run()
                 telemetryProvider()?.let { telemetry ->
                     telemetry.thermal.headroom?.let(headrooms::add)
@@ -102,10 +104,10 @@ class QuickTestEngine(
                 }
             }
             session = update(session, SessionStatus.COOLING_DOWN, results, warnings, null, headrooms, peakBattery)
-            mutableProgress.value = BenchmarkProgress(id, SessionStatus.COOLING_DOWN, null, total, total)
+            mutableProgress.value = BenchmarkProgress(id, SessionStatus.COOLING_DOWN, null, total, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.INTER_WORKLOAD_COOLDOWN, workloadIndex = total, totalWorkloads = total)
             delay(config.interTestCooldownMs)
             session = update(session.copy(endedAtEpochMs = clock()), SessionStatus.COMPLETED, results, warnings, null, headrooms, peakBattery)
-            mutableProgress.value = BenchmarkProgress(id, SessionStatus.COMPLETED, null, total, total)
+            mutableProgress.value = BenchmarkProgress(id, SessionStatus.COMPLETED, null, total, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.COMPLETED, workloadIndex = total, totalWorkloads = total)
             return session
         } catch (cancelled: CancellationException) {
             if (cancelled is TimeoutCancellationException) throw cancelled
@@ -114,7 +116,7 @@ class QuickTestEngine(
                 session.copy(endedAtEpochMs = clock()), SessionStatus.CANCELLED, results, warnings,
                 "Cancelled by user", headrooms, peakBattery,
             )
-            mutableProgress.value = BenchmarkProgress(id, SessionStatus.CANCELLED, null, results.size, total)
+            mutableProgress.value = BenchmarkProgress(id, SessionStatus.CANCELLED, null, results.size, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.CANCELLED, workloadIndex = results.size, totalWorkloads = total)
             return session
         } catch (error: Throwable) {
             storage.cleanupInterruptedFiles()
@@ -122,12 +124,15 @@ class QuickTestEngine(
                 session.copy(endedAtEpochMs = clock()), SessionStatus.FAILED, results, warnings,
                 error.message ?: error.javaClass.simpleName, headrooms, peakBattery,
             )
-            mutableProgress.value = BenchmarkProgress(id, SessionStatus.FAILED, null, results.size, total, session.failureReason)
+            mutableProgress.value = BenchmarkProgress(id, SessionStatus.FAILED, null, results.size, total, session.failureReason, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.FAILED, workloadIndex = results.size, totalWorkloads = total)
             return session
         }
     }
 
-    fun cancel() = activeWorkload?.cancel()
+    fun cancel() {
+        if (running.get()) mutableProgress.value = mutableProgress.value.copy(stage = com.febricahyaa.fluxlab.model.BenchmarkStage.CANCELLING, status = SessionStatus.RUNNING, message = "Cancelling")
+        activeWorkload?.cancel()
+    }
 
     private suspend fun update(
         previous: BenchmarkSession,
