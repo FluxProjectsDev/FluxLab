@@ -155,6 +155,7 @@ private fun gpuCapabilityText(state: GpuCapabilityState): String = when (state) 
     GpuCapabilityState.UNSUPPORTED_DEVICE_TOPOLOGY -> stringResource(R.string.not_supported)
 }
 
+@Composable
 fun TestsScreen(model: AppViewModel) {
     val settings by model.settings.collectAsStateWithLifecycle()
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
