@@ -25,6 +25,7 @@ import com.febricahyaa.fluxlab.model.SessionComparison
 import com.febricahyaa.fluxlab.model.SessionStatus
 import com.febricahyaa.fluxlab.model.SnapshotFreshness
 import com.febricahyaa.fluxlab.model.SynthesisReadResult
+import com.febricahyaa.fluxlab.model.MonitoringState
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,6 +46,8 @@ data class DashboardState(
     val telemetry: DeviceTelemetrySnapshot? = null,
     val frameTelemetry: FrameTelemetrySummary = FrameTelemetrySummary(),
     val cpuHistory: List<Pair<Long, Double?>> = emptyList(),
+    val telemetryHistory: List<DeviceTelemetrySnapshot> = emptyList(),
+    val monitoringState: MonitoringState = MonitoringState.INACTIVE,
     val errorCode: String? = null,
 )
 
@@ -68,15 +71,19 @@ class AppViewModel(application: Application, private val container: AppContainer
     init {
         viewModelScope.launch {
             settings.collectLatest { current ->
+                mutableDashboard.value = mutableDashboard.value.copy(monitoringState = MonitoringState.STARTING)
                 container.telemetrySource.stream(current.samplingIntervalMs)
                     .catch { error -> mutableDashboard.value = mutableDashboard.value.copy(errorCode = "telemetry:${error.javaClass.simpleName}") }
                     .collect { snapshot ->
                         val history = (mutableDashboard.value.cpuHistory +
                             (snapshot.elapsedRealtimeMs to snapshot.cpu.totalUsagePercent)).takeLast(60)
+                        val telemetryHistory = (mutableDashboard.value.telemetryHistory + snapshot).takeLast(120)
                         mutableDashboard.value = mutableDashboard.value.copy(
                             telemetry = snapshot,
                             frameTelemetry = container.frameTelemetry.snapshot(),
                             cpuHistory = history,
+                            telemetryHistory = telemetryHistory,
+                            monitoringState = MonitoringState.ACTIVE,
                         )
                     }
             }
@@ -132,6 +139,10 @@ class AppViewModel(application: Application, private val container: AppContainer
             )
             engine.run(environment, settings.value.includeStorage)
         }
+    }
+
+    fun setLiveMonitoring(enabled: Boolean) {
+        mutableDashboard.value = mutableDashboard.value.copy(monitoringState = if (enabled) MonitoringState.STARTING else MonitoringState.PAUSED)
     }
 
     fun cancelQuickTest() {

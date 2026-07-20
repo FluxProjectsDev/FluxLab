@@ -222,7 +222,26 @@ data class BenchmarkProgress(
     val completedSteps: Int,
     val totalSteps: Int,
     val message: String? = null,
+    val stage: BenchmarkStage = BenchmarkStage.IDLE,
+    val workloadIndex: Int = 0,
+    val totalWorkloads: Int = totalSteps,
+    val currentRepetition: Int = 0,
+    val totalRepetitions: Int = 0,
+    val completedWorkUnits: Long = 0L,
+    val totalWorkUnits: Long? = null,
+    val elapsedMs: Long = 0L,
+    val estimatedRemainingMs: Long? = null,
+    val visualMode: BenchmarkVisualMode = BenchmarkVisualMode.REDUCED,
+    val warnings: List<String> = emptyList(),
 )
+
+enum class BenchmarkStage {
+    IDLE, PREFLIGHT, AWAITING_CONFIRMATION, COUNTDOWN, WARMUP, RUNNING,
+    INTER_WORKLOAD_COOLDOWN, FINALIZING, COMPLETED, CANCELLING, CANCELLED, FAILED,
+}
+
+enum class BenchmarkVisualMode { FULL, REDUCED }
+
 
 interface BenchmarkWorkload {
     val kind: WorkloadKind
