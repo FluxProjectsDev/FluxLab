@@ -61,7 +61,7 @@
     <string name="select_session_report">Select a completed session to export from Sessions.</string>
     <string name="report_local_only">Reports stay on-device unless you explicitly export them.</string>
     <string name="theme">Theme</string>
-    <string name="theme_system">System</string>
+    <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="sampling_interval">Sampling interval</string>
@@ -121,4 +121,14 @@
     <string name="comparison_compatible">Compatible</string>
     <string name="comparison_compatible_warnings">Compatible with warnings</string>
     <string name="comparison_incompatible_methodology">Incompatible methodology</string>
+    <string name="storage">Storage</string>
+    <string name="storage_health_unavailable">Lifetime information unavailable</string>
+    <string name="thermal_status_unavailable">Thermal status unavailable</string>
+    <string name="start_live_monitoring">Start live monitoring</string>
+    <string name="stop_live_monitoring">Stop live monitoring</string>
+    <string name="frequency">Frequency</string>
+    <string name="psi">Memory pressure</string>
+    <string name="capacity">Capacity</string>
+    <string name="power_unavailable">Power unavailable</string>
+    <string name="cycle_count_unavailable">Cycle count is not exposed by this device.</string>
 </resources>

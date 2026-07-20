@@ -18,7 +18,7 @@ enum class UnitSetting { SI, IEC }
 enum class LanguageSetting { SYSTEM, ENGLISH, INDONESIAN }
 
 data class AppSettings(
-    val theme: ThemeSetting = ThemeSetting.DARK,
+    val theme: ThemeSetting = ThemeSetting.SYSTEM,
     val samplingIntervalMs: Long = 1_000L,
     val includeStorage: Boolean = true,
     val advancedMetrics: Boolean = false,
@@ -32,7 +32,7 @@ data class AppSettings(
 class SettingsStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { preferences ->
         AppSettings(
-            theme = enumValue(preferences[THEME], ThemeSetting.DARK),
+            theme = enumValue(preferences[THEME], ThemeSetting.SYSTEM),
             samplingIntervalMs = (preferences[INTERVAL] ?: 1_000L).coerceIn(250L, 10_000L),
             includeStorage = preferences[STORAGE] ?: true,
             advancedMetrics = preferences[ADVANCED] ?: false,

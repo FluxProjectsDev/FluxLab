@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,6 +31,17 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeviceThermostat
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,6 +64,9 @@ import com.febricahyaa.fluxlab.model.ReadinessResult
 import com.febricahyaa.fluxlab.model.RootState
 import com.febricahyaa.fluxlab.model.SessionStatus
 import com.febricahyaa.fluxlab.model.SynthesisReadResult
+import com.febricahyaa.fluxlab.model.BenchmarkPresetConfig
+import com.febricahyaa.fluxlab.model.BenchmarkStage
+import com.febricahyaa.fluxlab.model.MonitoringState
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,73 +88,42 @@ private fun Page(title: String, subtitle: String? = null, content: @Composable (
 }
 
 @Composable
-fun OverviewScreen(model: AppViewModel) {
+fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val state by model.dashboard.collectAsStateWithLifecycle()
     val sessions by model.sessions.collectAsStateWithLifecycle()
+    val telemetry = state.telemetry
     Page(stringResource(R.string.app_name), stringResource(R.string.tagline)) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip(stringResource(R.string.root_status), rootText(state.root), state.root is RootState.Available)
-                StatusChip(
-                    stringResource(R.string.flux_status),
-                    stringResource(if (state.flux.installed) R.string.installed else R.string.not_installed),
-                    state.flux.installed,
-                )
-                val synthesis = state.synthesis as? SynthesisReadResult.Success
-                StatusChip(
-                    stringResource(R.string.synthesis_status),
-                    if (synthesis == null) stringResource(R.string.unavailable) else statusText(synthesis.snapshot.freshness.name),
-                    synthesis != null,
-                )
-            }
-            state.flux.activeProfile?.let { MetricCard(stringResource(R.string.active_profile), it, state.flux.versionName) }
-            val telemetry = state.telemetry
-            if (telemetry == null) {
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Text(stringResource(R.string.checking))
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.Bolt, stringResource(R.string.app_name), tint = MaterialTheme.colorScheme.primary)
+                        Column { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium) }
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatusChip(stringResource(R.string.root_status), rootText(state.root), state.root is RootState.Available, Icons.Default.Security) { onNavigate("overview/flux") }
+                        StatusChip(stringResource(R.string.flux_status), stringResource(if (state.flux.installed) R.string.installed else R.string.not_installed), state.flux.installed, Icons.Default.Bolt) { onNavigate("overview/flux") }
+                        val synthesis = state.synthesis as? SynthesisReadResult.Success
+                        StatusChip(stringResource(R.string.synthesis_status), if (synthesis == null) stringResource(R.string.unavailable) else statusText(synthesis.snapshot.freshness.name), synthesis != null, Icons.Default.Sync) { onNavigate("overview/synthesiscore") }
                     }
                 }
+            }
+            state.flux.activeProfile?.let { MetricCard(stringResource(R.string.active_profile), it, state.flux.versionName, Icons.Default.Info) { onNavigate("overview/profile") } }
+            if (telemetry == null) {
+                Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp); Text(stringResource(R.string.checking)) } }
             } else {
-                MetricCard(
-                    stringResource(R.string.cpu),
-                    listOfNotNull(telemetry.cpu.identity.manufacturer, telemetry.cpu.identity.model)
-                        .joinToString("\n").ifBlank { stringResource(R.string.unknown) },
-                    "${telemetry.cpu.coreCount} ${stringResource(R.string.cores)} • ${telemetry.cpu.identity.supportedAbis.joinToString()}",
-                )
-                CpuHistoryChart(state.cpuHistory)
-                MetricCard(
-                    stringResource(R.string.memory),
-                    memoryValue(telemetry.memory.usedKb, telemetry.memory.totalKb),
-                    telemetry.memory.psiSomeAvg10?.let { "PSI avg10 ${format(it, "%")}" },
-                )
-                MetricCard(
-                    stringResource(R.string.thermal),
-                    telemetry.thermal.primaryTemperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
-                    telemetry.thermal.primarySource,
-                )
-                MetricCard(
-                    stringResource(R.string.battery),
-                    telemetry.battery.levelPercent?.let { "$it%" } ?: stringResource(R.string.unknown),
-                    telemetry.battery.estimatedPowerWatts?.let { "≈ ${format(it, "W")}" },
-                )
-                MetricCard(
-                    stringResource(R.string.gpu),
-                    listOfNotNull(telemetry.gpu.vendor, telemetry.gpu.model).joinToString(" ")
-                        .ifBlank { gpuCapabilityText(telemetry.gpu.capabilityState) },
-                    telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") }
-                        ?: gpuCapabilityText(telemetry.gpu.capabilityState),
-                )
+                MetricCard(stringResource(R.string.cpu), listOfNotNull(telemetry.cpu.identity.manufacturer, telemetry.cpu.identity.model).joinToString(" ").ifBlank { stringResource(R.string.unknown) }, telemetry.cpu.coreCount.toString() + " " + stringResource(R.string.cores) + " • " + (telemetry.cpu.totalUsagePercent?.let { format(it, "%") } ?: "—"), Icons.Default.Memory) { onNavigate("overview/cpu") }
+                MetricCard(stringResource(R.string.gpu), listOfNotNull(telemetry.gpu.vendor, telemetry.gpu.model).joinToString(" ").ifBlank { gpuCapabilityText(telemetry.gpu.capabilityState) }, telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") } ?: gpuCapabilityText(telemetry.gpu.capabilityState), Icons.Default.Bolt) { onNavigate("overview/gpu") }
+                MetricCard(stringResource(R.string.memory), memoryValue(telemetry.memory.usedKb, telemetry.memory.totalKb), telemetry.memory.psiSomeAvg10?.let { "PSI avg10 " + format(it, "%") }, Icons.Default.Memory) { onNavigate("overview/memory") }
+                MetricCard(stringResource(R.string.storage), storageSummary(telemetry), telemetry.storage.identity.availableCapacityBytes?.let { formatBytes(it) } ?: stringResource(R.string.storage_health_unavailable), Icons.Default.Storage) { onNavigate("overview/storage") }
+                MetricCard(stringResource(R.string.thermal), telemetry.thermal.primaryTemperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported), telemetry.thermal.primarySource ?: stringResource(R.string.thermal_status_unavailable), Icons.Default.DeviceThermostat) { onNavigate("overview/thermal") }
+                MetricCard(stringResource(R.string.battery), telemetry.battery.levelPercent?.toString()?.plus("%") ?: stringResource(R.string.unknown), batteryPowerText(telemetry), Icons.Default.BatteryChargingFull) { onNavigate("overview/battery") }
             }
-            sessions.firstOrNull()?.let { session ->
-                MetricCard(stringResource(R.string.latest_session), session.label, session.status.name.lowercase())
+            sessions.firstOrNull()?.let { session -> MetricCard(stringResource(R.string.latest_session), session.label, sessionStatusText(session.status), Icons.Default.Analytics) { onNavigate("overview/latest-session") } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(monitoringStateText(state.monitoringState), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = { model.setLiveMonitoring(state.monitoringState != MonitoringState.ACTIVE) }) { Text(stringResource(if (state.monitoringState == MonitoringState.ACTIVE) R.string.stop_live_monitoring else R.string.start_live_monitoring)) }
             }
-            Text(
-                stringResource(R.string.monitoring_disabled),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -156,20 +141,21 @@ private fun gpuCapabilityText(state: GpuCapabilityState): String = when (state) 
 }
 
 @Composable
-fun TestsScreen(model: AppViewModel) {
+fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val settings by model.settings.collectAsStateWithLifecycle()
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
     var notice by remember { mutableStateOf(false) }
     val readiness = model.readiness()
+    val presetConfig = BenchmarkPresetConfig.forPreset(settings.preset)
     val active = progress.sessionId != null && progress.status in setOf(
-        SessionStatus.PREPARING, SessionStatus.WARMING_UP, SessionStatus.RUNNING, SessionStatus.COOLING_DOWN,
+        SessionStatus.PREPARING, SessionStatus.WARMING_UP, SessionStatus.RUNNING, SessionStatus.COOLING_DOWN, SessionStatus.CANCELLED, SessionStatus.FAILED,
     )
-    Page(stringResource(R.string.tests), stringResource(R.string.quick_test_description)) {
+    Page(stringResource(R.string.tests), presetConfig.preset.name + " • " + presetConfig.measuredRepetitionCount.toString() + " repetitions") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.benchmark_preset), style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BenchmarkPreset.entries.forEach { preset ->
-                    FilterChip(selected = settings.preset == preset, onClick = { model.setPreset(preset) }, label = { Text(preset.name) })
+                    FilterChip(selected = settings.preset == preset, onClick = { model.setPreset(preset) }, label = { Text(presetLabel(preset)) })
                 }
             }
             MetricCard(
@@ -183,7 +169,7 @@ fun TestsScreen(model: AppViewModel) {
             )
             Text(stringResource(R.string.workloads), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.workload_list))
-            if (settings.includeStorage) Text(stringResource(R.string.storage_budget), color = MaterialTheme.colorScheme.primary)
+            if (settings.includeStorage) Text(stringResource(R.string.storage_budget) + " " + formatBytes(presetConfig.storageAllocationLimitBytes), color = MaterialTheme.colorScheme.primary)
             if (active) {
                 Text("${stringResource(R.string.progress)}: ${progress.completedSteps}/${progress.totalSteps}")
                 progress.workload?.let { Text(it.name.replace('_', ' ').lowercase()) }
@@ -193,11 +179,11 @@ fun TestsScreen(model: AppViewModel) {
             } else {
                 Button(
                     onClick = {
-                        if (settings.includeStorage && !settings.storageNoticeAccepted) notice = true else model.startQuickTest()
+                        if (settings.includeStorage && !settings.storageNoticeAccepted) notice = true else { model.startQuickTest(); onNavigate("benchmark/active") }
                     },
                     enabled = readiness !is ReadinessResult.Blocked,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.start_test)) }
+                ) { Text(presetCta(settings.preset)) }
             }
         }
     }
@@ -207,7 +193,7 @@ fun TestsScreen(model: AppViewModel) {
             title = { Text(stringResource(R.string.storage_notice_title)) },
             text = { Text(stringResource(R.string.storage_notice_body)) },
             confirmButton = {
-                TextButton(onClick = { model.acceptStorageNotice(); notice = false; model.startQuickTest() }) {
+                TextButton(onClick = { model.acceptStorageNotice(); notice = false; model.startQuickTest(); onNavigate("benchmark/active") }) {
                     Text(stringResource(R.string.continue_action))
                 }
             },
@@ -439,20 +425,22 @@ private fun ToggleRow(label: String, checked: Boolean, onChecked: (Boolean) -> U
 }
 
 @Composable
-private fun StatusChip(label: String, value: String, positive: Boolean) {
-    val color = if (positive) Color(0xFF75C48A) else MaterialTheme.colorScheme.outline
-    AssistChip(onClick = {}, label = { Text("$label · $value") }, leadingIcon = {
-        Canvas(Modifier.size(9.dp)) { drawCircle(color) }
-    })
+private fun StatusChip(label: String, value: String, positive: Boolean, icon: ImageVector = Icons.Default.Info, onClick: () -> Unit = {}) {
+    val color = if (positive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    AssistChip(onClick = onClick, label = { Text(label + " · " + value) }, leadingIcon = { Icon(icon, label, tint = color) })
 }
 
 @Composable
-private fun MetricCard(title: String, value: String, detail: String? = null) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(value, style = MaterialTheme.typography.titleLarge)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+private fun MetricCard(title: String, value: String, detail: String? = null, icon: ImageVector = Icons.Default.Info, onClick: () -> Unit = {}) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(52.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Icon(icon, title, tint = MaterialTheme.colorScheme.primary) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(value, style = MaterialTheme.typography.titleLarge)
+                detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            Icon(Icons.Default.ChevronRight, title, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -515,3 +503,163 @@ private fun format(value: Double, unit: String): String = String.format(Locale.g
 private fun memoryValue(used: Long?, total: Long?): String = if (used != null && total != null) {
     String.format(Locale.getDefault(), "%.1f / %.1f GiB", used / 1_048_576.0, total / 1_048_576.0)
 } else "—"
+
+private fun storageSummary(telemetry: com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot): String {
+    val type = telemetry.storage.identity.storageType.name
+    val capacity = telemetry.storage.identity.totalCapacityBytes?.let(::formatBytes) ?: "—"
+    return type + " • " + capacity
+}
+
+private fun batteryPowerText(telemetry: com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot): String {
+    val state = telemetry.battery.chargingState.name.lowercase().replace('_', ' ')
+    val power = telemetry.battery.calculatedPowerWatts?.let { format(it, "W") } ?: "Power unavailable"
+    return state.replaceFirstChar { it.uppercase() } + " • " + power
+}
+
+private fun monitoringStateText(state: MonitoringState): String = state.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+private fun sessionStatusText(status: SessionStatus): String = when (status) {
+    SessionStatus.COMPLETED -> "Completed"
+    SessionStatus.RUNNING -> "Running"
+    SessionStatus.CANCELLED -> "Cancelled"
+    SessionStatus.FAILED -> "Failed"
+    SessionStatus.PREPARING -> "Preparing"
+    SessionStatus.WARMING_UP -> "Warming up"
+    SessionStatus.COOLING_DOWN -> "Cooling down"
+}
+private fun formatBytes(value: Long): String = when {
+    value >= 1_073_741_824L -> String.format(Locale.getDefault(), "%.1f GiB", value / 1_073_741_824.0)
+    value >= 1_048_576L -> String.format(Locale.getDefault(), "%.1f MiB", value / 1_048_576.0)
+    else -> value.toString() + " B"
+}
+
+enum class MetricDetailKind { CPU, GPU, MEMORY, THERMAL, FLUX, SYNTHESIS, PROFILE }
+
+@Composable
+fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -> Unit) {
+    val state by model.dashboard.collectAsStateWithLifecycle()
+    val telemetry = state.telemetry
+    DetailPage(detailTitle(kind), onBack) {
+        when (kind) {
+            MetricDetailKind.CPU -> telemetry?.let {
+                MetricCard(stringResource(R.string.cpu), it.cpu.identity.model ?: stringResource(R.string.unknown), it.cpu.coreCount.toString() + " " + stringResource(R.string.cores), Icons.Default.Memory)
+                MetricCard(stringResource(R.string.cpu_usage_chart), it.cpu.totalUsagePercent?.let { value -> format(value, "%") } ?: stringResource(R.string.not_supported), "Source: /proc/stat", Icons.Default.Analytics)
+                CpuHistoryChart(state.cpuHistory)
+                it.cpu.cores.forEach { core -> Text("Core " + core.index + " • " + (core.usagePercent?.let { value -> format(value, "%") } ?: "—"), style = MaterialTheme.typography.bodyMedium) }
+            } ?: LoadingDetail()
+            MetricDetailKind.GPU -> telemetry?.let {
+                MetricCard(stringResource(R.string.gpu), listOfNotNull(it.gpu.vendor, it.gpu.model).joinToString(" ").ifBlank { gpuCapabilityText(it.gpu.capabilityState) }, it.gpu.driver ?: stringResource(R.string.gpu_driver_unavailable), Icons.Default.Bolt)
+                MetricCard(stringResource(R.string.frequency), it.gpu.currentFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported), it.gpu.frequencySource, Icons.Default.Analytics)
+                Text(gpuCapabilityText(it.gpu.capabilityState), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                it.gpu.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
+            } ?: LoadingDetail()
+            MetricDetailKind.MEMORY -> telemetry?.let {
+                MetricCard(stringResource(R.string.memory), memoryValue(it.memory.usedKb, it.memory.totalKb), "Available " + memoryValue(it.memory.availableKb, it.memory.totalKb), Icons.Default.Memory)
+                MetricCard(stringResource(R.string.psi), it.memory.psiSomeAvg10?.let { value -> format(value, "%") } ?: stringResource(R.string.not_supported), "RAM pressure source: /proc/pressure/memory", Icons.Default.Analytics)
+                it.memory.zramBytes?.let { zram -> Text("ZRAM " + formatBytes(zram)) }
+            } ?: LoadingDetail()
+            MetricDetailKind.THERMAL -> telemetry?.let {
+                MetricCard(stringResource(R.string.thermal), it.thermal.primaryTemperatureCelsius?.let { value -> format(value, "°C") } ?: stringResource(R.string.not_supported), it.thermal.primarySource, Icons.Default.DeviceThermostat)
+                Text(it.thermal.eligibility.name.replace('_', ' ').replaceFirstChar { value -> value.uppercase() })
+                it.thermal.zones.forEach { zone -> Text(zone.name + " • " + (zone.temperatureCelsius?.let { value -> format(value, "°C") } ?: "—"), style = MaterialTheme.typography.bodySmall) }
+            } ?: LoadingDetail()
+            MetricDetailKind.FLUX -> {
+                MetricCard(stringResource(R.string.flux_status), stringResource(if (state.flux.installed) R.string.installed else R.string.not_installed), state.flux.versionName, Icons.Default.Bolt)
+                state.flux.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            MetricDetailKind.SYNTHESIS -> {
+                val value = state.synthesis as? SynthesisReadResult.Success
+                MetricCard(stringResource(R.string.synthesis_status), value?.let { statusText(it.snapshot.freshness.name) } ?: stringResource(R.string.unavailable), "SynthesisCore", Icons.Default.Sync)
+            }
+            MetricDetailKind.PROFILE -> MetricCard(stringResource(R.string.active_profile), state.flux.activeProfile ?: stringResource(R.string.not_supported), state.flux.versionName, Icons.Default.Info)
+        }
+    }
+}
+
+@Composable
+fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
+    val state by model.dashboard.collectAsStateWithLifecycle()
+    val battery = state.telemetry?.battery
+    DetailPage(stringResource(R.string.battery), onBack) {
+        if (battery == null) LoadingDetail() else {
+            MetricCard(stringResource(R.string.battery), battery.levelPercent?.toString()?.plus("%") ?: stringResource(R.string.unknown), batteryPowerText(requireNotNull(state.telemetry)), Icons.Default.BatteryChargingFull)
+            val capacity = battery.diagnostics.capacity
+            Text(stringResource(R.string.capacity), style = MaterialTheme.typography.titleMedium)
+            Text("Current charge: " + (capacity.currentCharge.normalizedMilliAmpHours?.let { format(it, "mAh") } ?: stringResource(R.string.not_supported)))
+            Text("Design capacity: " + (capacity.designCapacity.normalizedMilliAmpHours?.let { format(it, "mAh") } ?: stringResource(R.string.not_supported)))
+            Text("Full-charge capacity: " + (capacity.fullChargeCapacity.normalizedMilliAmpHours?.let { format(it, "mAh") } ?: stringResource(R.string.not_supported)))
+            Text("Estimated battery health: " + (capacity.estimatedSoHPercent?.let { format(it, "%") } ?: stringResource(R.string.not_supported)))
+            Text("Health state: " + battery.diagnostics.health.name.replace('_', ' ').replaceFirstChar { it.uppercase() })
+            Text("Cycle count: " + (battery.diagnostics.cycleCount?.toString() ?: stringResource(R.string.cycle_count_unavailable)))
+            Text("Current: " + (battery.normalizedCurrentAmps?.let { format(it * 1000.0, "mA") } ?: stringResource(R.string.not_supported)))
+            Text("Voltage: " + (battery.normalizedVoltageVolts?.let { format(it, "V") } ?: stringResource(R.string.not_supported)))
+            Text("Power: " + (battery.calculatedPowerWatts?.let { format(it, "W") } ?: stringResource(R.string.power_unavailable)))
+            battery.powerWarnings.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
+            battery.diagnostics.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+@Composable
+fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
+    val state by model.dashboard.collectAsStateWithLifecycle()
+    val storage = state.telemetry?.storage
+    DetailPage(stringResource(R.string.storage), onBack) {
+        if (storage == null) LoadingDetail() else {
+            MetricCard(stringResource(R.string.storage), storage.identity.storageType.name, storage.identity.storageModel ?: stringResource(R.string.storage_health_unavailable), Icons.Default.Storage)
+            Text("Capacity: " + (storage.identity.totalCapacityBytes?.let(::formatBytes) ?: "—"))
+            Text("Available: " + (storage.identity.availableCapacityBytes?.let(::formatBytes) ?: "—"))
+            Text("Filesystem: " + (storage.identity.filesystem ?: "—"))
+            Text("Health: " + storage.health.state.name.replace('_', ' ').replaceFirstChar { it.uppercase() })
+            storage.health.lifetimeA.rangeStartPercent?.let { start -> Text("Estimated consumed lifetime: " + start + "–" + storage.health.lifetimeA.rangeEndPercent + "%") }
+            Text("Performance results are app-level buffered measurements, not guaranteed physical UFS/eMMC speed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            storage.identity.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            storage.health.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+@Composable
+fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
+    val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
+    val state by model.dashboard.collectAsStateWithLifecycle()
+    DetailPage(stringResource(R.string.tests), onBack) {
+        val fraction = if (progress.totalSteps > 0) progress.completedSteps.toFloat() / progress.totalSteps else 0f
+        CircularProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.size(128.dp))
+        Text(stageText(progress.stage), style = MaterialTheme.typography.headlineSmall)
+        progress.workload?.let { Text(workloadText(it)) }
+        Text(progress.completedSteps.toString() + " / " + progress.totalSteps.toString())
+        Text("CPU " + (state.telemetry?.cpu?.totalUsagePercent?.let { format(it, "%") } ?: "—"))
+        Text("Thermal " + (state.telemetry?.thermal?.primaryTemperatureCelsius?.let { format(it, "°C") } ?: "—"))
+        OutlinedButton(onClick = model::cancelQuickTest, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cancel_test)) }
+    }
+}
+
+@Composable
+fun SessionDetailScreen(model: AppViewModel, onBack: () -> Unit) {
+    val sessions by model.sessions.collectAsStateWithLifecycle()
+    DetailPage(stringResource(R.string.latest_session), onBack) {
+        sessions.firstOrNull()?.let { session ->
+            MetricCard(session.label, sessionStatusText(session.status), session.environment.presetConfiguration.preset.name, Icons.Default.Analytics)
+            session.workloadResults.forEach { result -> Text(result.kind.name.replace('_', ' ') + " • " + engineeringFormat(result.statistics.median, result.unit)) }
+        } ?: Text(stringResource(R.string.no_sessions))
+    }
+}
+
+@Composable
+private fun DetailPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { TextButton(onClick = onBack) { Text("‹") }; Text(title, style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.size(48.dp)) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) { item { content() } }
+    }
+}
+
+@Composable private fun LoadingDetail() { CircularProgressIndicator() }
+private fun presetLabel(preset: BenchmarkPreset): String = when (preset) { BenchmarkPreset.QUICK -> "Quick"; BenchmarkPreset.STANDARD -> "Standard"; BenchmarkPreset.EXTENDED -> "Extended" }
+private fun presetCta(preset: BenchmarkPreset): String = when (preset) { BenchmarkPreset.QUICK -> "Start Quick Test"; BenchmarkPreset.STANDARD -> "Start Standard Test"; BenchmarkPreset.EXTENDED -> "Start Extended Test" }
+private fun stageText(stage: BenchmarkStage): String = stage.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+private fun workloadText(kind: com.febricahyaa.fluxlab.model.WorkloadKind): String = kind.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+private fun engineeringFormat(value: Double, unit: String): String {
+    val divisor = when { unit == "ops/s" && value >= 1_000_000_000 -> 1_000_000_000.0; unit == "ops/s" && value >= 1_000_000 -> 1_000_000.0; unit == "ops/s" && value >= 1_000 -> 1_000.0; unit == "MiB/s" && value >= 1024 -> 1024.0; else -> 1.0 }
+    val suffix = when { divisor == 1_000_000_000.0 -> "Gops/s"; divisor == 1_000_000.0 -> "Mops/s"; divisor == 1_000.0 && unit == "ops/s" -> "Kops/s"; divisor == 1024.0 -> "GiB/s"; else -> unit }
+    return String.format(Locale.getDefault(), "%.2f %s", value / divisor, suffix)
+}

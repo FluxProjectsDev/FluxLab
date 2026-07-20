@@ -1,5 +1,6 @@
 package com.febricahyaa.fluxlab
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +21,8 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -76,7 +79,11 @@ fun FluxLabRoot() {
         ThemeSetting.LIGHT -> false
         ThemeSetting.DARK -> true
     }
-    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors) {
+    val context = LocalContext.current
+    val colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else if (dark) DarkColors else LightColors
+    MaterialTheme(colorScheme = colors) {
         FluxLabNavigation(model)
     }
 }
@@ -130,10 +137,21 @@ private fun FluxLabNavigation(model: AppViewModel) {
 @Composable
 private fun FluxLabNavHost(navigation: androidx.navigation.NavHostController, model: AppViewModel) {
     NavHost(navigation, startDestination = "overview") {
-        composable("overview") { OverviewScreen(model) }
-        composable("tests") { TestsScreen(model) }
+        composable("overview") { OverviewScreen(model) { route -> navigation.navigate(route) } }
+        composable("tests") { TestsScreen(model) { route -> navigation.navigate(route) } }
         composable("sessions") { SessionsScreen(model) }
         composable("reports") { ReportsScreen(model) }
         composable("settings") { SettingsScreen(model) }
+        composable("benchmark/active") { ActiveBenchmarkScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("overview/cpu") { MetricDetailScreen(model, MetricDetailKind.CPU, onBack = { navigation.popBackStack() }) }
+        composable("overview/gpu") { MetricDetailScreen(model, MetricDetailKind.GPU, onBack = { navigation.popBackStack() }) }
+        composable("overview/memory") { MetricDetailScreen(model, MetricDetailKind.MEMORY, onBack = { navigation.popBackStack() }) }
+        composable("overview/thermal") { MetricDetailScreen(model, MetricDetailKind.THERMAL, onBack = { navigation.popBackStack() }) }
+        composable("overview/battery") { BatteryDetailScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("overview/storage") { StorageDetailScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("overview/flux") { MetricDetailScreen(model, MetricDetailKind.FLUX, onBack = { navigation.popBackStack() }) }
+        composable("overview/synthesiscore") { MetricDetailScreen(model, MetricDetailKind.SYNTHESIS, onBack = { navigation.popBackStack() }) }
+        composable("overview/profile") { MetricDetailScreen(model, MetricDetailKind.PROFILE, onBack = { navigation.popBackStack() }) }
+        composable("overview/latest-session") { SessionDetailScreen(model, onBack = { navigation.popBackStack() }) }
     }
 }

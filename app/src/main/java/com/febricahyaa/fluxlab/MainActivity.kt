@@ -3,6 +3,7 @@ package com.febricahyaa.fluxlab
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.core.view.doOnAttach
 import androidx.metrics.performance.JankStats
 
@@ -12,6 +13,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent { FluxLabRoot() }
         window.decorView.doOnAttach {
             if (jankStats == null) {

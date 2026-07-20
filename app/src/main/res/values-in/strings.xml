@@ -61,7 +61,7 @@
     <string name="select_session_report">Pilih sesi selesai dari halaman Sesi untuk diekspor.</string>
     <string name="report_local_only">Laporan tetap di perangkat kecuali Anda mengekspornya.</string>
     <string name="theme">Tema</string>
-    <string name="theme_system">Sistem</string>
+    <string name="theme_system">Ikuti sistem</string>
     <string name="theme_light">Terang</string>
     <string name="theme_dark">Gelap</string>
     <string name="sampling_interval">Interval pengambilan sampel</string>
@@ -121,4 +121,14 @@
     <string name="comparison_compatible">Kompatibel</string>
     <string name="comparison_compatible_warnings">Kompatibel dengan peringatan</string>
     <string name="comparison_incompatible_methodology">Metodologi tidak kompatibel</string>
+    <string name="storage">Penyimpanan</string>
+    <string name="storage_health_unavailable">Informasi umur tidak tersedia</string>
+    <string name="thermal_status_unavailable">Status termal tidak tersedia</string>
+    <string name="start_live_monitoring">Mulai pemantauan langsung</string>
+    <string name="stop_live_monitoring">Hentikan pemantauan langsung</string>
+    <string name="frequency">Frekuensi</string>
+    <string name="psi">Tekanan memori</string>
+    <string name="capacity">Kapasitas</string>
+    <string name="power_unavailable">Data daya tidak tersedia</string>
+    <string name="cycle_count_unavailable">Jumlah siklus tidak disediakan oleh perangkat ini.</string>
 </resources>
