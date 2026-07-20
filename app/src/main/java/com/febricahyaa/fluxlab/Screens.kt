@@ -230,7 +230,7 @@ private fun SessionCard(session: BenchmarkSession, model: AppViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                Text(session.status.name.lowercase())
+                Text(sessionStatusText(session.status))
             }
             if (session.comparisonRole.name == "BASELINE") {
                 AssistChip(onClick = {}, label = { Text(stringResource(R.string.baseline)) })
@@ -238,7 +238,7 @@ private fun SessionCard(session: BenchmarkSession, model: AppViewModel) {
             if (expanded) {
                 HorizontalDivider()
                 session.workloadResults.forEach { result ->
-                    Text("${result.kind.name.replace('_', ' ')} — ${format(result.statistics.median, result.unit)}")
+                    Text("${result.kind.name.replace('_', ' ')} — ${engineeringFormat(result.statistics.median, result.unit)}")
                 }
                 session.failureReason?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -517,15 +517,16 @@ private fun batteryPowerText(telemetry: com.febricahyaa.fluxlab.model.DeviceTele
 }
 
 private fun monitoringStateText(state: MonitoringState): String = state.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-private fun sessionStatusText(status: SessionStatus): String = when (status) {
-    SessionStatus.COMPLETED -> "Completed"
-    SessionStatus.RUNNING -> "Running"
-    SessionStatus.CANCELLED -> "Cancelled"
-    SessionStatus.FAILED -> "Failed"
-    SessionStatus.PREPARING -> "Preparing"
-    SessionStatus.WARMING_UP -> "Warming up"
-    SessionStatus.COOLING_DOWN -> "Cooling down"
-}
+@Composable
+private fun sessionStatusText(status: SessionStatus): String = stringResource(when (status) {
+    SessionStatus.COMPLETED -> R.string.completed
+    SessionStatus.RUNNING -> R.string.running
+    SessionStatus.CANCELLED -> R.string.cancelled
+    SessionStatus.FAILED -> R.string.failed
+    SessionStatus.PREPARING -> R.string.preparing
+    SessionStatus.WARMING_UP -> R.string.warming_up
+    SessionStatus.COOLING_DOWN -> R.string.cooling_down
+})
 private fun formatBytes(value: Long): String = when {
     value >= 1_073_741_824L -> String.format(Locale.getDefault(), "%.1f GiB", value / 1_073_741_824.0)
     value >= 1_048_576L -> String.format(Locale.getDefault(), "%.1f MiB", value / 1_048_576.0)
