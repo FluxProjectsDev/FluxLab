@@ -10,6 +10,12 @@ import android.os.SystemClock
 import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.febricahyaa.fluxlab.model.BatteryTelemetry
+import com.febricahyaa.fluxlab.model.BatteryDiagnostics
+import com.febricahyaa.fluxlab.model.BatteryCapacityNormalizer
+import com.febricahyaa.fluxlab.model.BatteryCapacityUnit
+import com.febricahyaa.fluxlab.model.BatteryHealthEstimator
+import com.febricahyaa.fluxlab.model.BatteryHealthParser
+import com.febricahyaa.fluxlab.model.StorageIdentityProvider
 import com.febricahyaa.fluxlab.model.BenchmarkPreset
 import com.febricahyaa.fluxlab.model.ThermalEligibilityEvaluator
 import com.febricahyaa.fluxlab.model.CpuCoreTelemetry
@@ -42,12 +48,14 @@ class AndroidDeviceTelemetrySource(
     rootGateway: RootGateway? = null,
     private val cpuIdentityProvider: CpuIdentityProvider = AndroidCpuIdentityProvider(),
     private val gpuCapabilityProvider: GpuCapabilityProvider = AndroidGpuCapabilityProvider(rootGateway = rootGateway),
+    private val storageIdentityProvider: StorageIdentityProvider = AndroidStorageIdentityProvider(context),
 ) : DeviceTelemetrySource {
     private val appContext = context.applicationContext
     private var previousCpu: Map<String, CpuTimes> = emptyMap()
 
     override suspend fun sample(): DeviceTelemetrySnapshot = withContext(Dispatchers.IO) {
         val battery = readBattery()
+        val storage = storageIdentityProvider.read()
         val cpuIdentity = cpuIdentityProvider.identify()
         DeviceTelemetrySnapshot(
             elapsedRealtimeMs = SystemClock.elapsedRealtime(),
@@ -57,6 +65,7 @@ class AndroidDeviceTelemetrySource(
             battery = battery,
             gpu = gpuCapabilityProvider.sample(),
             system = readSystem(),
+            storage = storage,
         )
     }
 
@@ -142,6 +151,7 @@ class AndroidDeviceTelemetrySource(
             ?.takeUnless { it == Long.MIN_VALUE }
         val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)?.toLong()?.takeIf { it > 0 }
         val counter = manager?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+        val averageCurrent = manager?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
             ?.takeUnless { it == Long.MIN_VALUE }
         val state = when (status) {
             BatteryManager.BATTERY_STATUS_CHARGING -> ChargingState.CHARGING
@@ -151,7 +161,46 @@ class AndroidDeviceTelemetrySource(
             else -> ChargingState.UNKNOWN
         }
         val reading = BatteryPowerNormalizer.read(current, BatteryCurrentUnit.MICROAMPERES, voltage, BatteryVoltageUnit.MILLIVOLTS, state)
-        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, reading.calculatedPowerWatts, reading.calculatedPowerWatts != null, currentRaw = current, currentUnitSource = reading.currentUnitSource, voltageRaw = voltage, voltageUnitSource = reading.voltageUnitSource, calculatedPowerWatts = reading.calculatedPowerWatts, chargingState = state, powerConfidence = reading.powerConfidence, powerWarnings = reading.powerWarnings, normalizedCurrentAmps = reading.normalizedCurrentAmps, normalizedVoltageVolts = reading.normalizedVoltageVolts, powerSource = reading.powerSource)
+        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, reading.calculatedPowerWatts, reading.calculatedPowerWatts != null, currentRaw = current, currentUnitSource = reading.currentUnitSource, voltageRaw = voltage, voltageUnitSource = reading.voltageUnitSource, calculatedPowerWatts = reading.calculatedPowerWatts, chargingState = state, powerConfidence = reading.powerConfidence, powerWarnings = reading.powerWarnings, normalizedCurrentAmps = reading.normalizedCurrentAmps, normalizedVoltageVolts = reading.normalizedVoltageVolts, powerSource = reading.powerSource, averageCurrentMicroamps = averageCurrent, diagnostics = readBatteryDiagnostics(intent, counter))
+    }
+
+    private fun readBatteryDiagnostics(intent: Intent?, chargeCounterMicroAh: Long?): BatteryDiagnostics {
+        val health = BatteryHealthParser.parse(intent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1))
+        val batteryDir = File("/sys/class/power_supply").listFiles()?.firstOrNull { it.name.equals("battery", true) || it.name.startsWith("battery", true) }
+        fun node(vararg names: String): Pair<Long, String>? = names.firstNotNullOfOrNull { name ->
+            val file = batteryDir?.let { File(it, name) }
+            file?.let { readLong(it.path)?.let { value -> value to it.path } }
+        }
+        val currentCharge = BatteryCapacityNormalizer.read(chargeCounterMicroAh, BatteryCapacityUnit.MICROAMP_HOURS, "BatteryManager charge counter")
+        val fullRaw = node("charge_full")
+        val designRaw = node("charge_full_design")
+        val full = BatteryCapacityNormalizer.read(fullRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, fullRaw?.second)
+        val design = BatteryCapacityNormalizer.read(designRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, designRaw?.second)
+        val soh = BatteryHealthEstimator.estimate(full.normalizedMilliAmpHours, design.normalizedMilliAmpHours)
+        val cycle = node("cycle_count", "battery_cycle")
+        val cycleCount = cycle?.first?.takeIf { it in 0L..100000L }?.toInt()
+        val warnings = buildList {
+            if (soh != null) add("State of Health is an estimate based on OEM capacity calibration")
+            if (health == com.febricahyaa.fluxlab.model.BatteryHealthState.UNKNOWN) add("Android battery health state is unavailable")
+            if (cycle != null && cycleCount == null) add("Battery cycle count is outside the validated range")
+        }
+        return BatteryDiagnostics(
+            status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)?.toString(),
+            health = health,
+            technology = intent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY),
+            present = intent?.getBooleanExtra(BatteryManager.EXTRA_PRESENT, false),
+            cycleCount = cycleCount,
+            cycleCountSource = cycle?.second,
+            cycleCountWarning = if (cycle == null) "Cycle count is not exposed by this device" else null,
+            capacity = com.febricahyaa.fluxlab.model.BatteryCapacityDiagnostics(
+                currentCharge = currentCharge, designCapacity = design, fullChargeCapacity = full, estimatedSoHPercent = soh,
+                sohWarning = if (soh != null) "Estimated from validated capacity sources; OEM calibration may affect accuracy" else null,
+                capacitySource = listOfNotNull(currentCharge.source, design.source, full.source).distinct().joinToString().ifBlank { null },
+                capacityConfidence = listOf(currentCharge.confidence, design.confidence, full.confidence).maxByOrNull { it.ordinal } ?: BatteryPowerConfidence.UNAVAILABLE,
+            ),
+            warnings = warnings,
+            sources = listOfNotNull(currentCharge.source, full.source, design.source, cycle?.second).distinct(),
+        )
     }
 
     private fun readThermal(battery: BatteryTelemetry): ThermalTelemetry {

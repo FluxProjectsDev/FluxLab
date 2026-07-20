@@ -99,6 +99,8 @@ data class BatteryTelemetry(
     val normalizedCurrentAmps: Double? = currentMicroamps?.div(1_000_000.0),
     val normalizedVoltageVolts: Double? = voltageMillivolts?.div(1_000.0),
     val powerSource: String? = null,
+    val averageCurrentMicroamps: Long? = null,
+    val diagnostics: BatteryDiagnostics = BatteryDiagnostics(),
 )
 
 enum class GpuCapabilityState {
@@ -151,6 +153,7 @@ data class DeviceTelemetrySnapshot(
     val battery: BatteryTelemetry,
     val gpu: GpuTelemetry,
     val system: SystemTelemetry,
+    val storage: StorageTelemetry = StorageTelemetry(),
 )
 
 interface DeviceTelemetrySource {
