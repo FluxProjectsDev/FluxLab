@@ -536,6 +536,17 @@ private fun formatBytes(value: Long): String = when {
 enum class MetricDetailKind { CPU, GPU, MEMORY, THERMAL, FLUX, SYNTHESIS, PROFILE }
 
 @Composable
+private fun detailTitle(kind: MetricDetailKind): String = when (kind) {
+    MetricDetailKind.CPU -> stringResource(R.string.cpu)
+    MetricDetailKind.GPU -> stringResource(R.string.gpu)
+    MetricDetailKind.MEMORY -> stringResource(R.string.memory)
+    MetricDetailKind.THERMAL -> stringResource(R.string.thermal)
+    MetricDetailKind.FLUX -> stringResource(R.string.flux_status)
+    MetricDetailKind.SYNTHESIS -> stringResource(R.string.synthesis_status)
+    MetricDetailKind.PROFILE -> stringResource(R.string.active_profile)
+}
+
+@Composable
 fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -> Unit) {
     val state by model.dashboard.collectAsStateWithLifecycle()
     val telemetry = state.telemetry
