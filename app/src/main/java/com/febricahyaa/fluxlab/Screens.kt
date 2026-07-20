@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.febricahyaa.fluxlab.model.BenchmarkSession
+import com.febricahyaa.fluxlab.model.BenchmarkPreset
 import com.febricahyaa.fluxlab.model.GpuCapabilityState
 import com.febricahyaa.fluxlab.model.localizedStatusKey
 import com.febricahyaa.fluxlab.model.LocalizedStatusKey
@@ -164,6 +165,12 @@ fun TestsScreen(model: AppViewModel) {
     )
     Page(stringResource(R.string.tests), stringResource(R.string.quick_test_description)) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.benchmark_preset), style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BenchmarkPreset.entries.forEach { preset ->
+                    FilterChip(selected = settings.preset == preset, onClick = { model.setPreset(preset) }, label = { Text(preset.name) })
+                }
+            }
             MetricCard(
                 stringResource(R.string.readiness),
                 when (readiness) {

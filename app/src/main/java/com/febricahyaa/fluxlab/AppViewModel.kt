@@ -14,6 +14,7 @@ import com.febricahyaa.fluxlab.benchmark.ReadinessContext
 import com.febricahyaa.fluxlab.benchmark.ReadinessGuard
 import com.febricahyaa.fluxlab.data.ComparisonEngine
 import com.febricahyaa.fluxlab.model.BenchmarkEnvironment
+import com.febricahyaa.fluxlab.model.BenchmarkPresetConfig
 import com.febricahyaa.fluxlab.model.BenchmarkProgress
 import com.febricahyaa.fluxlab.model.BenchmarkSession
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot
@@ -101,6 +102,7 @@ class AppViewModel(application: Application, private val container: AppContainer
                 benchmarkRunning = engine.isRunning,
                 monitoringConflict = false,
                 fluxFreshness = synthesisFreshness,
+                preset = settings.value.preset,
             ),
         )
     }
@@ -126,6 +128,7 @@ class AppViewModel(application: Application, private val container: AppContainer
                 androidThermalStatus = telemetry.thermal.androidStatus,
                 thermalHeadroomSamples = listOfNotNull(telemetry.thermal.headroom),
                 refreshRateHz = telemetry.system.refreshRateHz,
+                presetConfiguration = BenchmarkPresetConfig.forPreset(settings.value.preset),
             )
             engine.run(environment, settings.value.includeStorage)
         }
@@ -177,6 +180,7 @@ class AppViewModel(application: Application, private val container: AppContainer
 
     fun setTheme(value: ThemeSetting) = viewModelScope.launch { container.settingsStore.setTheme(value) }
     fun setSamplingInterval(value: Long) = viewModelScope.launch { container.settingsStore.setInterval(value) }
+    fun setPreset(value: com.febricahyaa.fluxlab.model.BenchmarkPreset) = viewModelScope.launch { container.settingsStore.setPreset(value) }
     fun setIncludeStorage(value: Boolean) = viewModelScope.launch { container.settingsStore.setStorage(value) }
     fun setAdvanced(value: Boolean) = viewModelScope.launch { container.settingsStore.setAdvanced(value) }
     fun setUnits(value: UnitSetting) = viewModelScope.launch { container.settingsStore.setUnits(value) }

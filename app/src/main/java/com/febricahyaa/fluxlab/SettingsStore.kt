@@ -1,5 +1,7 @@
 package com.febricahyaa.fluxlab
 
+import com.febricahyaa.fluxlab.model.BenchmarkPreset
+
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -24,6 +26,7 @@ data class AppSettings(
     val language: LanguageSetting = LanguageSetting.SYSTEM,
     val storageNoticeAccepted: Boolean = false,
     val selectedReportSessionId: String? = null,
+    val preset: BenchmarkPreset = BenchmarkPreset.QUICK,
 )
 
 class SettingsStore(private val context: Context) {
@@ -37,6 +40,7 @@ class SettingsStore(private val context: Context) {
             language = enumValue(preferences[LANGUAGE], LanguageSetting.SYSTEM),
             storageNoticeAccepted = preferences[NOTICE] ?: false,
             selectedReportSessionId = preferences[SELECTED_REPORT_SESSION],
+            preset = enumValue(preferences[PRESET], BenchmarkPreset.QUICK),
         )
     }
 
@@ -50,6 +54,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setSelectedReportSessionId(id: String?) = context.settingsDataStore.edit {
         if (id.isNullOrBlank()) it.remove(SELECTED_REPORT_SESSION) else it[SELECTED_REPORT_SESSION] = id
     }
+    suspend fun setPreset(value: BenchmarkPreset) = context.settingsDataStore.edit { it[PRESET] = value.name }
 
     private inline fun <reified T : Enum<T>> enumValue(raw: String?, fallback: T): T =
         raw?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: fallback
@@ -63,5 +68,6 @@ class SettingsStore(private val context: Context) {
         val LANGUAGE = stringPreferencesKey("language")
         val NOTICE = booleanPreferencesKey("storage_notice_accepted")
         val SELECTED_REPORT_SESSION = stringPreferencesKey("selected_report_session_id")
+        val PRESET = stringPreferencesKey("benchmark_preset")
     }
 }
