@@ -1,0 +1,329 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "9d80989efe80b9b2bc0051e245f88796",
+    "entities": [
+      {
+        "tableName": "benchmark_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, `status` TEXT NOT NULL, `label` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `benchmarkSchemaVersion` INTEGER NOT NULL, `deviceManufacturer` TEXT NOT NULL, `deviceModel` TEXT NOT NULL, `androidFingerprint` TEXT NOT NULL, `kernelVersion` TEXT NOT NULL, `fluxInstalled` INTEGER NOT NULL, `fluxEnabled` INTEGER, `fluxRuntimeAvailable` INTEGER NOT NULL, `fluxDaemonAlive` INTEGER, `fluxVersionName` TEXT, `fluxVersionCode` INTEGER, `fluxActiveProfile` TEXT, `fluxKernelType` TEXT, `fluxConfigDirectory` TEXT NOT NULL, `synthesisAvailable` INTEGER NOT NULL, `rootState` TEXT NOT NULL, `charging` INTEGER, `batteryLevel` INTEGER, `initialBatteryTemperatureC` REAL, `peakBatteryTemperatureC` REAL, `androidThermalStatus` INTEGER, `thermalHeadroomSamples` TEXT NOT NULL, `refreshRateHz` REAL, `warnings` TEXT NOT NULL, `failureReason` TEXT, `comparisonRole` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMs",
+            "columnName": "startedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtEpochMs",
+            "columnName": "endedAtEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appVersion",
+            "columnName": "appVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "benchmarkSchemaVersion",
+            "columnName": "benchmarkSchemaVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceManufacturer",
+            "columnName": "deviceManufacturer",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceModel",
+            "columnName": "deviceModel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "androidFingerprint",
+            "columnName": "androidFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kernelVersion",
+            "columnName": "kernelVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fluxInstalled",
+            "columnName": "fluxInstalled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fluxEnabled",
+            "columnName": "fluxEnabled",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fluxRuntimeAvailable",
+            "columnName": "fluxRuntimeAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fluxDaemonAlive",
+            "columnName": "fluxDaemonAlive",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fluxVersionName",
+            "columnName": "fluxVersionName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fluxVersionCode",
+            "columnName": "fluxVersionCode",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fluxActiveProfile",
+            "columnName": "fluxActiveProfile",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fluxKernelType",
+            "columnName": "fluxKernelType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fluxConfigDirectory",
+            "columnName": "fluxConfigDirectory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "synthesisAvailable",
+            "columnName": "synthesisAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rootState",
+            "columnName": "rootState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charging",
+            "columnName": "charging",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "batteryLevel",
+            "columnName": "batteryLevel",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "initialBatteryTemperatureC",
+            "columnName": "initialBatteryTemperatureC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "peakBatteryTemperatureC",
+            "columnName": "peakBatteryTemperatureC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "androidThermalStatus",
+            "columnName": "androidThermalStatus",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "thermalHeadroomSamples",
+            "columnName": "thermalHeadroomSamples",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "refreshRateHz",
+            "columnName": "refreshRateHz",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "warnings",
+            "columnName": "warnings",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureReason",
+            "columnName": "failureReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "comparisonRole",
+            "columnName": "comparisonRole",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "workload_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `kind` TEXT NOT NULL, `workloadVersion` INTEGER NOT NULL, `unit` TEXT NOT NULL, `repetitions` TEXT NOT NULL, `durationsNs` TEXT NOT NULL, `median` REAL NOT NULL, `minimum` REAL NOT NULL, `maximum` REAL NOT NULL, `standardDeviation` REAL NOT NULL, `coefficientOfVariation` REAL, `validationChecksum` TEXT NOT NULL, `threadCount` INTEGER NOT NULL, `affinityForced` INTEGER NOT NULL, `warnings` TEXT NOT NULL, PRIMARY KEY(`sessionId`, `kind`), FOREIGN KEY(`sessionId`) REFERENCES `benchmark_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workloadVersion",
+            "columnName": "workloadVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repetitions",
+            "columnName": "repetitions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationsNs",
+            "columnName": "durationsNs",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "median",
+            "columnName": "median",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimum",
+            "columnName": "minimum",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maximum",
+            "columnName": "maximum",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "standardDeviation",
+            "columnName": "standardDeviation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coefficientOfVariation",
+            "columnName": "coefficientOfVariation",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "validationChecksum",
+            "columnName": "validationChecksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "threadCount",
+            "columnName": "threadCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "affinityForced",
+            "columnName": "affinityForced",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "warnings",
+            "columnName": "warnings",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId",
+            "kind"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workload_results_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workload_results_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "benchmark_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9d80989efe80b9b2bc0051e245f88796')"
+    ]
+  }
+}
