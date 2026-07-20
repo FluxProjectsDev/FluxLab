@@ -1,0 +1,2 @@
+-keep class androidx.room.** { *; }
+-keepclassmembers class com.febricahyaa.fluxlab.benchmark.NativeBridge { native <methods>; }

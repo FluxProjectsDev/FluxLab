@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="workload_list">Native integer, floating-point, multi-threaded CPU, memory copy, memory fill, pointer latency, and optional private-storage tests.</string>
+    <string name="cpu_usage_chart">CPU usage history (%)</string>
+</resources>
