@@ -29,3 +29,37 @@ Comparison is permitted only for matching workload versions. Throughput workload
 The guard blocks duplicate runs, critically low private storage, severe-or-higher Android thermal status, and invalid execution state. Charging, low battery, stale Flux state, active monitoring, and high background CPU produce warnings. Charging is not an unconditional block. FluxLab relies on Android's device-specific thermal severity instead of applying a universal temperature threshold.
 
 For useful comparisons, keep device, Android build, kernel, Flux profile, charging state, ambient temperature, and foreground conditions consistent. Repeat sessions and treat small noisy changes as inconclusive.
+
+## Phase 3 reliability and diagnostics
+
+FluxLab keeps telemetry sampling separate from Compose rendering. Hardware reads
+run from the existing coroutine telemetry source and the UI retains a bounded
+120-snapshot history; chart interpolation is visual only and raw samples remain
+unchanged in session/report data. Missing GPU, thermal, power, or storage data is
+shown as an explicit capability limitation rather than a fabricated value.
+
+The selected Quick, Standard, or Extended preset is resolved through
+`BenchmarkPresetConfig.forPreset` and the immutable configuration is copied into
+the benchmark environment at start. Progress is represented by explicit stage,
+workload, and repetition fields. Cancellation is cooperative and invokes the
+existing private-storage cleanup path. Reduced visual feedback is the default
+benchmark mode to limit measurement interference; live monitoring can add small
+observation overhead and should be recorded when comparing runs.
+
+Battery diagnostics preserve BatteryManager raw units and only normalize charge
+counter values to mAh when the source is µAh or mAh. Estimated battery health is
+`fullChargeCapacity / designCapacity` and is explicitly an estimate; Android's
+health enum and cycle-count availability are separate capabilities. Energy
+capacity is not converted to charge capacity without a validated voltage basis.
+
+Storage is separate from RAM. FluxLab dynamically probes block metadata and can
+identify UFS, eMMC, virtual, unknown, or inaccessible topology. UFS/eMMC lifetime
+fields are coarse descriptor buckets and are never presented as an exact health
+percentage. Buffered app-file reads, durable writes, and fsync latency measure
+application-visible filesystem behavior, not guaranteed physical UFS throughput.
+Health/lifetime metadata and benchmark performance are reported independently.
+
+The app follows the system Material 3 theme by default, uses dynamic color on
+supported Android versions with a stable fallback palette, and enables edge to
+edge. Raw paths and normalization details remain in technical sections so the
+Overview stays readable while exports preserve source and warning metadata.

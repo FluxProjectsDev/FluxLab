@@ -106,3 +106,20 @@ object StorageLifetimeParser {
         return StorageHealth(state, a, b, preValid?.toString(), raw, source, 1, BatteryPowerConfidence.MEDIUM, warnings)
     }
 }
+
+object StorageSafety {
+    fun canAllocate(availableBytes: Long?, requestedBytes: Long, safetyMarginBytes: Long = 64L * 1_048_576L): Boolean {
+        if (availableBytes == null || requestedBytes <= 0L || safetyMarginBytes < 0L) return false
+        return requestedBytes <= availableBytes && availableBytes - requestedBytes >= safetyMarginBytes
+    }
+}
+
+object StorageMetricLabels {
+    const val BUFFERED_READ = "Buffered storage read"
+    const val CACHED_READ = "Repeated cached storage read"
+    const val BUFFERED_WRITE = "Buffered storage write"
+    const val DURABLE_WRITE = "Durable storage write"
+    const val FSYNC_LATENCY = "Fsync latency"
+    const val FILE_CREATION_LATENCY = "File creation latency"
+    const val FILE_CLOSE_LATENCY = "File close latency"
+}
