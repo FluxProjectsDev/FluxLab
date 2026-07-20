@@ -95,7 +95,7 @@ class QuickTestEngine(
             activeWorkload = null
             if (includeStorage) {
                 mutableProgress.value = BenchmarkProgress(id, SessionStatus.RUNNING, WorkloadKind.STORAGE_WRITE, nativeKinds.size, total)
-                storage.run().forEach { result ->
+                storage.run(config).forEach { result ->
                     results += result
                     session = update(session, SessionStatus.RUNNING, results, warnings, null, headrooms, peakBattery)
                     mutableProgress.value = BenchmarkProgress(id, SessionStatus.RUNNING, result.kind, results.size.coerceAtMost(total), total)
