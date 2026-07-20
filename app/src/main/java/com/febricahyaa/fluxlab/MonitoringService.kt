@@ -24,7 +24,7 @@ class MonitoringService : Service() {
             return START_NOT_STICKY
         }
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_fluxlab)
+            .setSmallIcon(R.drawable.ic_fluxlab_monochrome)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.monitoring_notification))
             .setOngoing(true)
