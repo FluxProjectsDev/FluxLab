@@ -112,7 +112,7 @@
     <string name="export_requires_session">Select a completed benchmark session before exporting a report.</string>
     <string name="selected_session">Selected session</string>
     <string name="change_session">Change session</string>
-    <string name="report_device_preset_methodology">%1 %2 • %3 preset • methodology v%4</string>
+    <string name="report_device_preset_methodology">%1$s %2$s • %3$s preset • methodology v%4$d</string>
     <string name="status_up_to_date">Up to date</string>
     <string name="status_update_required">Update required</string>
     <string name="status_partially_available">Partially available</string>
