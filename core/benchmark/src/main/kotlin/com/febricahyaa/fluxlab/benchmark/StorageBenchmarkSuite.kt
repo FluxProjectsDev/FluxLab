@@ -115,7 +115,7 @@ class StorageBenchmarkSuite(private val cacheDirectory: File) {
         val requested = ONE_MIB.toLong() * config.workloadScale.coerceAtLeast(1)
         val fixed = ONE_MIB.toLong() * (config.measuredRepetitionCount + 2)
         val available = config.storageAllocationLimitBytes - fixed
-        check(available >= ONE_MIB * (config.measuredRepetitionCount + 1)) { "Storage allocation limit is too small" }
+        check(available >= ONE_MIB.toLong() * (config.measuredRepetitionCount + 1)) { "Storage allocation limit is too small" }
         return requested.coerceAtMost(available / (config.measuredRepetitionCount + 1)).coerceAtLeast(ONE_MIB.toLong()).toInt()
     }
 
