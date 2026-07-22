@@ -27,4 +27,13 @@ class HardwareCapabilityProvidersTest {
         assertNull(GpuParsers.parseKgslBusy("101 100"))
         assertTrue(GpuParsers.parseKgslBusy("0 1") == 0.0)
     }
+    @Test
+    fun kgslBusyDeltaRejectsResetAndZeroTotal() {
+        val first = GpuParsers.parseKgslBusyCounters("50 100")
+        val second = GpuParsers.parseKgslBusyCounters("80 160")
+        assertEquals(50.0, GpuParsers.deltaUtilization(first, second)!!, 0.001)
+        assertNull(GpuParsers.deltaUtilization(second, first))
+        assertNull(GpuParsers.parseKgslBusyCounters("0 0"))
+    }
+
 }

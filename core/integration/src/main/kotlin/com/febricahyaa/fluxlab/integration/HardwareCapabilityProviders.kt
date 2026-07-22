@@ -253,9 +253,49 @@ class AndroidCpuIdentityProvider(
     }
 }
 
+data class NormalizedCpuFrequency(val hz: Long, val sourceUnit: String, val warning: String? = null)
+
+object CpuFrequencyParser {
+    private const val MIN_HZ = 100_000L
+    private const val MAX_HZ = 8_000_000_000L
+
+    fun normalize(raw: String?, nodePath: String): NormalizedCpuFrequency? {
+        val value = raw?.trim()?.toLongOrNull()?.takeIf { it > 0L } ?: return null
+        val lower = nodePath.lowercase()
+        val result = when {
+            lower.contains("hz") && !lower.contains("khz") && value in MIN_HZ..MAX_HZ ->
+                NormalizedCpuFrequency(value, "Hz")
+            value in 100_000L..10_000_000L ->
+                NormalizedCpuFrequency(value * 1_000L, "kHz", "Normalized cpufreq value from kHz")
+            value in 100L..10_000L ->
+                NormalizedCpuFrequency(value * 1_000_000L, "MHz", "Normalized cpufreq value from MHz")
+            else -> return null
+        }
+        return result.takeIf { it.hz in MIN_HZ..MAX_HZ }
+    }
+}
+
 data class NormalizedFrequency(val hz: Long, val sourceUnit: String, val warning: String?)
 
+data class GpuBusyCounters(val busy: Long, val total: Long)
+
 object GpuParsers {
+    fun parseKgslBusyCounters(raw: String): GpuBusyCounters? {
+        val values = raw.trim().split(Regex("\\s+")).map { it.toLongOrNull() }
+        if (values.size != 2 || values.any { it == null || it < 0L }) return null
+        val busy = requireNotNull(values[0])
+        val total = requireNotNull(values[1])
+        return GpuBusyCounters(busy, total).takeIf { it.total > 0L && it.busy <= it.total }
+    }
+
+    fun deltaUtilization(previous: GpuBusyCounters?, current: GpuBusyCounters?): Double? {
+        if (previous == null || current == null) return null
+        val busyDelta = current.busy - previous.busy
+        val totalDelta = current.total - previous.total
+        if (busyDelta < 0L || totalDelta <= 0L || busyDelta > totalDelta) return null
+        return (busyDelta.toDouble() / totalDelta.toDouble() * 100.0).takeIf { it.isFinite() }
+    }
+
     fun normalizeFrequency(raw: String): NormalizedFrequency? {
         val value = raw.trim().toLongOrNull()?.takeIf { it > 0 } ?: return null
         val normalized = when {
@@ -285,6 +325,8 @@ class AndroidGpuCapabilityProvider(
     private val rootGateway: RootGateway? = null,
     private val platformHardware: String = Build.HARDWARE,
 ) : GpuCapabilityProvider {
+    private var previousBusy: GpuBusyCounters? = null
+
     override suspend fun sample(): GpuTelemetry {
         val warnings = mutableListOf<String>()
         val kgslLikely = nodes.exists(KGSL) || platformHardware.contains(Regex("qcom|qualcomm|msm|sm[0-9]", RegexOption.IGNORE_CASE))
@@ -335,8 +377,18 @@ class AndroidGpuCapabilityProvider(
         val maximum = frequency("$KGSL/max_gpuclk", RootCommand.READ_KGSL_MAX_GPUCLK, warnings)
             ?: frequency("$KGSL/devfreq/max_freq", RootCommand.READ_KGSL_DEVFREQ_MAX, warnings)
         val busy = text("$KGSL/gpubusy", RootCommand.READ_KGSL_GPUBUSY, warnings)
-        val utilization = busy?.first?.let(GpuParsers::parseKgslBusy)
-        if (busy != null && utilization == null) warnings += "Malformed KGSL gpubusy payload; utilization omitted"
+        val counters = busy?.first?.let(GpuParsers::parseKgslBusyCounters)
+        val previous = previousBusy
+        previousBusy = counters
+        val utilization = GpuParsers.deltaUtilization(previous, counters)
+        val utilizationReason = when {
+            busy == null -> "GPU busy counters are unavailable"
+            counters == null -> "GPU busy counters are malformed"
+            previous == null -> "Collecting initial GPU busy samples"
+            utilization == null -> "GPU busy counters reset or produced an invalid delta"
+            else -> null
+        }
+        if (utilizationReason != null) warnings += utilizationReason
         val permissionDenied = warnings.any { "permission denied" in it.lowercase() }
         val rootRequired = warnings.any { "root unavailable" in it.lowercase() }
         val state = when {
@@ -357,7 +409,8 @@ class AndroidGpuCapabilityProvider(
             driver = "KGSL",
             utilizationPercent = utilization,
             identitySource = model?.second,
-            utilizationSource = utilization?.let { busy.second },
+            utilizationSource = utilization?.let { busy?.second },
+            utilizationAvailabilityReason = utilizationReason,
             capabilityState = state,
             warnings = warnings.distinct(),
         )

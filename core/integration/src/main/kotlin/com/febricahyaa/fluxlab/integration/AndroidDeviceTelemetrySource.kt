@@ -31,6 +31,7 @@ import com.febricahyaa.fluxlab.model.RootGateway
 import com.febricahyaa.fluxlab.model.SystemTelemetry
 import com.febricahyaa.fluxlab.model.ThermalTelemetry
 import com.febricahyaa.fluxlab.model.ThermalZone
+import com.febricahyaa.fluxlab.model.ThermalSensorClassifier
 import com.febricahyaa.fluxlab.model.ChargingState
 import com.febricahyaa.fluxlab.model.ThermalEligibility
 import com.febricahyaa.fluxlab.integration.BatteryCurrentUnit
@@ -82,25 +83,74 @@ class AndroidDeviceTelemetrySource(
         val current = readText("/proc/stat")?.let(ProcStatParser::parse).orEmpty()
         val previous = previousCpu
         previousCpu = current
-        val count = identity.coreCount.coerceAtLeast(1)
-        val cores = (0 until count).map { index ->
-            val directory = "/sys/devices/system/cpu/cpu$index/cpufreq"
+        val indices = (current.keys + (0 until identity.coreCount).map { "cpu" + it })
+            .mapNotNull { it.removePrefix("cpu").takeIf(String::isNotBlank)?.toIntOrNull() }
+            .distinct()
+            .sorted()
+        val cores = indices.map { index ->
+            val cpuDirectory = "/sys/devices/system/cpu/cpu$index/cpufreq"
+            val policyDirectory = "/sys/devices/system/cpu/cpufreq/policy$index"
+                .takeIf { File(it).isDirectory }
+            val frequencyDirectory = policyDirectory ?: cpuDirectory
+            val currentFrequency = readFrequency(
+                listOf(
+                    "$frequencyDirectory/scaling_cur_freq",
+                    "$frequencyDirectory/cpuinfo_cur_freq",
+                ),
+            )
+            val minimumFrequency = readFrequency(
+                listOf(
+                    "$frequencyDirectory/scaling_min_freq",
+                    "$frequencyDirectory/cpuinfo_min_freq",
+                ),
+            )
+            val maximumFrequency = readFrequency(
+                listOf(
+                    "$frequencyDirectory/scaling_max_freq",
+                    "$frequencyDirectory/cpuinfo_max_freq",
+                ),
+            )
+            val online = readText("/sys/devices/system/cpu/cpu$index/online")
+                ?.trim()
+                ?.let { it == "1" }
+                ?: index == 0
+            val cluster = readText(File(frequencyDirectory, "related_cpus").path)
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?: policyDirectory?.let { File(it).name }
             CpuCoreTelemetry(
                 index = index,
                 usagePercent = ProcStatParser.usage(previous["cpu$index"], current["cpu$index"]),
-                currentFrequencyKhz = readLong("$directory/scaling_cur_freq"),
-                minimumFrequencyKhz = readLong("$directory/cpuinfo_min_freq") ?: readLong("$directory/scaling_min_freq"),
-                maximumFrequencyKhz = readLong("$directory/cpuinfo_max_freq") ?: readLong("$directory/scaling_max_freq"),
-                online = index == 0 || readLong("/sys/devices/system/cpu/cpu$index/online") != 0L,
-                governor = readText("$directory/scaling_governor")?.trim()?.takeIf(String::isNotEmpty),
+                currentFrequencyKhz = currentFrequency?.first?.hz?.div(1_000L),
+                minimumFrequencyKhz = minimumFrequency?.first?.hz?.div(1_000L),
+                maximumFrequencyKhz = maximumFrequency?.first?.hz?.div(1_000L),
+                online = online,
+                governor = readText("$frequencyDirectory/scaling_governor")?.trim()?.takeIf(String::isNotEmpty),
+                currentFrequencyHz = currentFrequency?.first?.hz,
+                minimumFrequencyHz = minimumFrequency?.first?.hz,
+                maximumFrequencyHz = maximumFrequency?.first?.hz,
+                frequencySource = currentFrequency?.second,
+                cluster = cluster,
             )
         }
+        val onlineGroups = cores.filter { it.online && it.currentFrequencyHz != null }
+            .groupBy { it.cluster ?: ("cpu" + it.index) }
+        val aggregateFrequency = onlineGroups.values.mapNotNull { group -> group.firstOrNull()?.currentFrequencyHz }
+            .takeIf { it.isNotEmpty() }
+            ?.average()
+            ?.toLong()
         return CpuTelemetry(
             totalUsagePercent = ProcStatParser.usage(previous["cpu"], current["cpu"]),
             cores = cores,
             architecture = identity.supportedAbis.firstOrNull() ?: System.getProperty("os.arch").orEmpty(),
-            coreCount = count,
+            coreCount = indices.size.coerceAtLeast(identity.coreCount).coerceAtLeast(1),
             identity = identity,
+            aggregateFrequencyHz = aggregateFrequency,
+            frequencySource = cores.firstOrNull { it.currentFrequencyHz != null }?.frequencySource,
+            frequencyConfidence = when {
+                aggregateFrequency != null -> com.febricahyaa.fluxlab.model.IdentityConfidence.MEDIUM
+                else -> com.febricahyaa.fluxlab.model.IdentityConfidence.UNAVAILABLE
+            },
         )
     }
 
@@ -108,25 +158,48 @@ class AndroidDeviceTelemetrySource(
         val info = readText("/proc/meminfo")?.let(MemInfoParser::parse).orEmpty()
         val total = info["MemTotal"]
         val available = info["MemAvailable"]
-        val cached = listOf("Cached", "SReclaimable").sumOf { info[it] ?: 0L } - (info["Shmem"] ?: 0L)
+        val cached = MemInfoParser.cachedKb(info)
+        val buffers = info["Buffers"]
+        val shmem = info["Shmem"]
         val swapTotal = info["SwapTotal"]
         val swapFree = info["SwapFree"]
-        val psi = readText("/proc/pressure/memory")?.let(PsiParser::parse) ?: PsiValues(null, null)
+        val psi = readText("/proc/pressure/memory")?.let(PsiParser::parse)
         val major = readText("/proc/vmstat")?.lineSequence()?.firstOrNull { it.startsWith("pgmajfault ") }
             ?.substringAfter(' ')?.trim()?.toLongOrNull()
-        val zram = File("/sys/block").listFiles()?.filter { it.name.startsWith("zram") }
-            ?.mapNotNull { readLong(File(it, "disksize").path) }?.sum()?.takeIf { it > 0 }
+        val zramDirectories = File("/sys/block").listFiles()
+            ?.filter { it.name.startsWith("zram") }
+            .orEmpty()
+        val zramValues = zramDirectories.flatMap { directory ->
+            listOf("disksize", "mem_used_total", "orig_data_size", "compr_data_size").mapNotNull { name ->
+                readLong(File(directory, name).path)?.let { name to it }
+            }
+        }.groupBy({ it.first }, { it.second }).mapValues { (_, values) -> values.sum() }
+        val zram = ZramParser.parse(zramValues)
         return MemoryTelemetry(
             totalKb = total,
             availableKb = available,
-            usedKb = if (total != null && available != null) (total - available).coerceAtLeast(0L) else null,
-            cachedKb = cached.takeIf { it > 0 },
+            usedKb = MemInfoParser.usedKb(info),
+            cachedKb = cached,
             swapTotalKb = swapTotal,
             swapUsedKb = if (swapTotal != null && swapFree != null) (swapTotal - swapFree).coerceAtLeast(0L) else null,
-            zramBytes = zram,
-            psiSomeAvg10 = psi.someAvg10,
-            psiFullAvg10 = psi.fullAvg10,
+            zramBytes = zram.diskSizeBytes,
+            psiSomeAvg10 = psi?.someAvg10,
+            psiFullAvg10 = psi?.fullAvg10,
             majorPageFaults = major,
+            buffersKb = buffers,
+            shmemKb = shmem,
+            psiSomeAvg60 = psi?.someAvg60,
+            psiSomeAvg300 = psi?.someAvg300,
+            psiFullAvg60 = psi?.fullAvg60,
+            psiFullAvg300 = psi?.fullAvg300,
+            zramMemoryUsedBytes = zram.memoryUsedBytes,
+            zramOriginalDataBytes = zram.originalDataBytes,
+            zramCompressedDataBytes = zram.compressedDataBytes,
+            warnings = buildList {
+                if (total == null) add("MemTotal is unavailable")
+                if (psi == null) add("Memory PSI is unavailable at /proc/pressure/memory")
+                if (zramDirectories.isEmpty()) add("ZRAM is not exposed by this device")
+            },
         )
     }
 
@@ -146,8 +219,9 @@ class AndroidDeviceTelemetrySource(
             BatteryManager.BATTERY_PLUGGED_DOCK -> "dock"
             else -> null
         }
-        val temperature = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
-            ?.takeUnless { it == Int.MIN_VALUE }?.div(10.0)
+        val temperatureRaw = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            ?.toLong()?.takeUnless { it == Int.MIN_VALUE.toLong() }
+        val temperature = temperatureRaw?.let(ThermalSensorParser::normalize)?.celsius
         val current = manager?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
             ?.takeUnless { it == Long.MIN_VALUE }
         val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)?.toLong()?.takeIf { it > 0 }
@@ -179,6 +253,8 @@ class AndroidDeviceTelemetrySource(
         val design = BatteryCapacityNormalizer.reading(designRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, designRaw?.second)
         val soh = BatteryHealthEstimator.estimate(full.normalizedMilliAmpHours, design.normalizedMilliAmpHours)
         val cycle = node("cycle_count", "battery_cycle")
+        val maximumCurrent = node("constant_charge_current_max", "charge_control_max_current", "current_max")
+        val maximumVoltage = node("constant_charge_voltage_max", "voltage_max_design", "voltage_max")
         val cycleCount = cycle?.first?.takeIf { it in 0L..100000L }?.toInt()
         val warnings = buildList {
             if (soh != null) add("State of Health is an estimate based on OEM capacity calibration")
@@ -193,6 +269,8 @@ class AndroidDeviceTelemetrySource(
             cycleCount = cycleCount,
             cycleCountSource = cycle?.second,
             cycleCountWarning = if (cycle == null) "Cycle count is not exposed by this device" else null,
+            maximumChargingCurrentMicroamps = maximumCurrent?.first?.takeIf { it in 0L..50_000_000L },
+            maximumChargingVoltageMicrovolts = maximumVoltage?.first?.takeIf { it in 0L..50_000_000L },
             capacity = com.febricahyaa.fluxlab.model.BatteryCapacityDiagnostics(
                 currentCharge = currentCharge, designCapacity = design, fullChargeCapacity = full, estimatedSoHPercent = soh,
                 sohWarning = if (soh != null) "Estimated from validated capacity sources; OEM calibration may affect accuracy" else null,
@@ -200,7 +278,7 @@ class AndroidDeviceTelemetrySource(
                 capacityConfidence = listOf(currentCharge.confidence, design.confidence, full.confidence).maxByOrNull { it.ordinal } ?: BatteryPowerConfidence.UNAVAILABLE,
             ),
             warnings = warnings,
-            sources = listOfNotNull(currentCharge.source, full.source, design.source, cycle?.second).distinct(),
+            sources = listOfNotNull(currentCharge.source, full.source, design.source, cycle?.second, maximumCurrent?.second, maximumVoltage?.second).distinct(),
         )
     }
 
@@ -216,7 +294,7 @@ class AndroidDeviceTelemetrySource(
                     ?: return@mapNotNull null
                 val raw = readLong(File(directory, "temp").path)
                 val normalized = raw?.let(ThermalSensorParser::normalize)
-                ThermalZone(type, normalized?.celsius, directory.path, normalized?.rawValue, normalized?.unitSource ?: com.febricahyaa.fluxlab.model.TemperatureUnitSource.UNKNOWN)
+                ThermalZone(type, normalized?.celsius, directory.path, normalized?.rawValue, normalized?.unitSource ?: com.febricahyaa.fluxlab.model.TemperatureUnitSource.UNKNOWN, ThermalSensorClassifier.classify(type))
             }.orEmpty()
         val evidenceZone = zones.firstOrNull { zone ->
             val type = zone.name.lowercase()
@@ -226,7 +304,12 @@ class AndroidDeviceTelemetrySource(
         val source = evidenceZone?.let { "thermal zone: ${it.name}" }
             ?: battery.temperatureCelsius?.let { "battery sensor" }
         val eligibility = status?.let { ThermalEligibilityEvaluator.evaluate(it, BenchmarkPreset.QUICK).eligibility } ?: ThermalEligibility.THERMAL_STATUS_UNAVAILABLE
-        return ThermalTelemetry(status, headroom, zones, battery.temperatureCelsius, primary, source, eligibility, emptyList())
+        val hottest = zones.filter { it.temperatureCelsius != null }.maxByOrNull { it.temperatureCelsius ?: Double.NEGATIVE_INFINITY }
+        val warnings = buildList {
+            if (zones.isEmpty()) add("No validated thermal sensors are available")
+            if (zones.any { it.temperatureCelsius == null }) add("Some thermal sensors returned invalid samples")
+        }
+        return ThermalTelemetry(status, headroom, zones, battery.temperatureCelsius, primary, source, eligibility, warnings, hottest)
     }
 
     @Suppress("DEPRECATION")
@@ -251,6 +334,11 @@ class AndroidDeviceTelemetrySource(
             refreshRateHz = refresh,
         )
     }
+
+    private fun readFrequency(paths: List<String>): Pair<NormalizedCpuFrequency, String>? =
+        paths.firstNotNullOfOrNull { path ->
+            CpuFrequencyParser.normalize(readText(path), path)?.let { it to path }
+        }
 
     private fun readText(path: String): String? = runCatching {
         File(path).takeIf { it.isFile && it.canRead() }?.readText()

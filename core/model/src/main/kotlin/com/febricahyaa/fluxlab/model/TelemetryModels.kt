@@ -31,6 +31,11 @@ data class CpuCoreTelemetry(
     val maximumFrequencyKhz: Long?,
     val online: Boolean,
     val governor: String?,
+    val currentFrequencyHz: Long? = currentFrequencyKhz?.times(1_000L),
+    val minimumFrequencyHz: Long? = minimumFrequencyKhz?.times(1_000L),
+    val maximumFrequencyHz: Long? = maximumFrequencyKhz?.times(1_000L),
+    val frequencySource: String? = null,
+    val cluster: String? = null,
 )
 
 data class CpuTelemetry(
@@ -39,6 +44,9 @@ data class CpuTelemetry(
     val architecture: String,
     val coreCount: Int,
     val identity: CpuIdentity = CpuIdentity(coreCount = coreCount, supportedAbis = listOf(architecture)),
+    val aggregateFrequencyHz: Long? = null,
+    val frequencySource: String? = null,
+    val frequencyConfidence: IdentityConfidence = IdentityConfidence.UNAVAILABLE,
 )
 
 data class MemoryTelemetry(
@@ -52,6 +60,16 @@ data class MemoryTelemetry(
     val psiSomeAvg10: Double?,
     val psiFullAvg10: Double?,
     val majorPageFaults: Long?,
+    val buffersKb: Long? = null,
+    val shmemKb: Long? = null,
+    val psiSomeAvg60: Double? = null,
+    val psiSomeAvg300: Double? = null,
+    val psiFullAvg60: Double? = null,
+    val psiFullAvg300: Double? = null,
+    val zramMemoryUsedBytes: Long? = null,
+    val zramOriginalDataBytes: Long? = null,
+    val zramCompressedDataBytes: Long? = null,
+    val warnings: List<String> = emptyList(),
 )
 
 enum class TemperatureUnitSource { CELSIUS, DECI_CELSIUS, MILLI_CELSIUS, UNKNOWN }
@@ -62,7 +80,10 @@ data class ThermalZone(
     val sourcePath: String,
     val rawValue: Long? = null,
     val unitSource: TemperatureUnitSource = TemperatureUnitSource.UNKNOWN,
+    val group: ThermalSensorGroup = ThermalSensorGroup.OTHER,
 )
+
+enum class ThermalSensorGroup { CPU, GPU, BATTERY, CHARGER, MODEM, WIFI, SKIN, PMIC, CAMERA, DISPLAY, OTHER }
 
 data class ThermalTelemetry(
     val androidStatus: Int?,
@@ -73,6 +94,7 @@ data class ThermalTelemetry(
     val primarySource: String?,
     val eligibility: ThermalEligibility = ThermalEligibility.THERMAL_STATUS_UNAVAILABLE,
     val warnings: List<String> = emptyList(),
+    val hottestZone: ThermalZone? = null,
 )
 
 enum class BatteryPowerConfidence { HIGH, MEDIUM, LOW, UNAVAILABLE }
@@ -125,6 +147,7 @@ data class GpuTelemetry(
     val utilizationPercent: Double? = null,
     val identitySource: String? = null,
     val utilizationSource: String? = null,
+    val utilizationAvailabilityReason: String? = null,
     val capabilityState: GpuCapabilityState = GpuCapabilityState.GPU_NOT_IDENTIFIED,
     val warnings: List<String> = emptyList(),
 )
