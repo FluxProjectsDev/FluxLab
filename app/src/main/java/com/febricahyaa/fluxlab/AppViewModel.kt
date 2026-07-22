@@ -46,6 +46,10 @@ data class DashboardState(
     val telemetry: DeviceTelemetrySnapshot? = null,
     val frameTelemetry: FrameTelemetrySummary = FrameTelemetrySummary(),
     val cpuHistory: List<Pair<Long, Double?>> = emptyList(),
+    val gpuHistory: List<Pair<Long, Double?>> = emptyList(),
+    val memoryHistory: List<Pair<Long, Double?>> = emptyList(),
+    val thermalHistory: List<Pair<Long, Double?>> = emptyList(),
+    val batteryHistory: List<Pair<Long, Double?>> = emptyList(),
     val telemetryHistory: List<DeviceTelemetrySnapshot> = emptyList(),
     val monitoringState: MonitoringState = MonitoringState.INACTIVE,
     val errorCode: String? = null,
@@ -73,17 +77,42 @@ class AppViewModel(application: Application, private val container: AppContainer
             settings.collectLatest { current ->
                 mutableDashboard.value = mutableDashboard.value.copy(monitoringState = MonitoringState.STARTING)
                 container.telemetrySource.stream(current.samplingIntervalMs)
-                    .catch { error -> mutableDashboard.value = mutableDashboard.value.copy(errorCode = "telemetry:${error.javaClass.simpleName}") }
+                    .catch { error ->
+                        mutableDashboard.value = mutableDashboard.value.copy(
+                            monitoringState = MonitoringState.TEMPORARILY_UNAVAILABLE,
+                            errorCode = "telemetry:" + error.javaClass.simpleName,
+                        )
+                    }
                     .collect { snapshot ->
+                        val timestamp = snapshot.elapsedRealtimeMs
                         val history = (mutableDashboard.value.cpuHistory +
-                            (snapshot.elapsedRealtimeMs to snapshot.cpu.totalUsagePercent)).takeLast(60)
+                            (timestamp to snapshot.cpu.totalUsagePercent)).takeLast(120)
+                        val gpuHistory = (mutableDashboard.value.gpuHistory +
+                            (timestamp to snapshot.gpu.utilizationPercent)).takeLast(120)
+                        val memoryPercent = snapshot.memory.usedKb?.toDouble()?.let { used ->
+                            snapshot.memory.totalKb?.takeIf { it > 0L }?.let { total -> used / total * 100.0 }
+                        }
+                        val memoryHistory = (mutableDashboard.value.memoryHistory + (timestamp to memoryPercent)).takeLast(120)
+                        val thermalHistory = (mutableDashboard.value.thermalHistory +
+                            (timestamp to snapshot.thermal.hottestZone?.temperatureCelsius)).takeLast(120)
+                        val batteryHistory = (mutableDashboard.value.batteryHistory +
+                            (timestamp to snapshot.battery.levelPercent?.toDouble())).takeLast(120)
                         val telemetryHistory = (mutableDashboard.value.telemetryHistory + snapshot).takeLast(120)
+                        val monitoringState = if (snapshot.cpu.totalUsagePercent == null) {
+                            MonitoringState.COLLECTING_INITIAL_SAMPLES
+                        } else {
+                            MonitoringState.ACTIVE
+                        }
                         mutableDashboard.value = mutableDashboard.value.copy(
                             telemetry = snapshot,
                             frameTelemetry = container.frameTelemetry.snapshot(),
                             cpuHistory = history,
+                            gpuHistory = gpuHistory,
+                            memoryHistory = memoryHistory,
+                            thermalHistory = thermalHistory,
+                            batteryHistory = batteryHistory,
                             telemetryHistory = telemetryHistory,
-                            monitoringState = MonitoringState.ACTIVE,
+                            monitoringState = monitoringState,
                         )
                     }
             }
@@ -136,6 +165,7 @@ class AppViewModel(application: Application, private val container: AppContainer
                 thermalHeadroomSamples = listOfNotNull(telemetry.thermal.headroom),
                 refreshRateHz = telemetry.system.refreshRateHz,
                 presetConfiguration = BenchmarkPresetConfig.forPreset(settings.value.preset),
+                visualMode = settings.value.visualMode,
             )
             engine.run(environment, settings.value.includeStorage)
         }
@@ -192,6 +222,7 @@ class AppViewModel(application: Application, private val container: AppContainer
     fun setTheme(value: ThemeSetting) = viewModelScope.launch { container.settingsStore.setTheme(value) }
     fun setSamplingInterval(value: Long) = viewModelScope.launch { container.settingsStore.setInterval(value) }
     fun setPreset(value: com.febricahyaa.fluxlab.model.BenchmarkPreset) = viewModelScope.launch { container.settingsStore.setPreset(value) }
+    fun setVisualMode(value: com.febricahyaa.fluxlab.model.BenchmarkVisualMode) = viewModelScope.launch { container.settingsStore.setVisualMode(value) }
     fun setIncludeStorage(value: Boolean) = viewModelScope.launch { container.settingsStore.setStorage(value) }
     fun setAdvanced(value: Boolean) = viewModelScope.launch { container.settingsStore.setAdvanced(value) }
     fun setUnits(value: UnitSetting) = viewModelScope.launch { container.settingsStore.setUnits(value) }

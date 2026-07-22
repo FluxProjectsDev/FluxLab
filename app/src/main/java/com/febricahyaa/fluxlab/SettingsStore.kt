@@ -1,6 +1,7 @@
 package com.febricahyaa.fluxlab
 
 import com.febricahyaa.fluxlab.model.BenchmarkPreset
+import com.febricahyaa.fluxlab.model.BenchmarkVisualMode
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -27,6 +28,7 @@ data class AppSettings(
     val storageNoticeAccepted: Boolean = false,
     val selectedReportSessionId: String? = null,
     val preset: BenchmarkPreset = BenchmarkPreset.QUICK,
+    val visualMode: BenchmarkVisualMode = BenchmarkVisualMode.REDUCED,
 )
 
 class SettingsStore(private val context: Context) {
@@ -41,6 +43,7 @@ class SettingsStore(private val context: Context) {
             storageNoticeAccepted = preferences[NOTICE] ?: false,
             selectedReportSessionId = preferences[SELECTED_REPORT_SESSION],
             preset = enumValue(preferences[PRESET], BenchmarkPreset.QUICK),
+            visualMode = enumValue(preferences[VISUAL_MODE], BenchmarkVisualMode.REDUCED),
         )
     }
 
@@ -55,6 +58,7 @@ class SettingsStore(private val context: Context) {
         if (id.isNullOrBlank()) it.remove(SELECTED_REPORT_SESSION) else it[SELECTED_REPORT_SESSION] = id
     }
     suspend fun setPreset(value: BenchmarkPreset) = context.settingsDataStore.edit { it[PRESET] = value.name }
+    suspend fun setVisualMode(value: BenchmarkVisualMode) = context.settingsDataStore.edit { it[VISUAL_MODE] = value.name }
 
     private inline fun <reified T : Enum<T>> enumValue(raw: String?, fallback: T): T =
         raw?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: fallback
@@ -69,5 +73,6 @@ class SettingsStore(private val context: Context) {
         val NOTICE = booleanPreferencesKey("storage_notice_accepted")
         val SELECTED_REPORT_SESSION = stringPreferencesKey("selected_report_session_id")
         val PRESET = stringPreferencesKey("benchmark_preset")
+        val VISUAL_MODE = stringPreferencesKey("benchmark_visual_mode")
     }
 }

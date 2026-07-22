@@ -102,6 +102,7 @@ data class BenchmarkEnvironment(
     val thermalHeadroomSamples: List<Double>,
     val refreshRateHz: Double?,
     val presetConfiguration: BenchmarkPresetConfig = BenchmarkPresetConfig.forPreset(BenchmarkPreset.QUICK),
+    val visualMode: BenchmarkVisualMode = BenchmarkVisualMode.REDUCED,
 )
 
 data class BenchmarkSession(
@@ -233,6 +234,7 @@ data class BenchmarkProgress(
     val estimatedRemainingMs: Long? = null,
     val visualMode: BenchmarkVisualMode = BenchmarkVisualMode.REDUCED,
     val warnings: List<String> = emptyList(),
+    val preset: BenchmarkPreset? = null,
 )
 
 enum class BenchmarkStage {

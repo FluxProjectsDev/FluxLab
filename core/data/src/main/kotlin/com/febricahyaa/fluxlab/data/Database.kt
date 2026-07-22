@@ -54,6 +54,7 @@ data class BenchmarkSessionEntity(
     val failureReason: String?,
     val comparisonRole: String,
     val methodologyMetadata: String = "",
+    val visualMode: String = "REDUCED",
 )
 
 @Entity(
@@ -143,7 +144,7 @@ interface BenchmarkDao {
 
 @Database(
     entities = [BenchmarkSessionEntity::class, WorkloadResultEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FluxLabDatabase : RoomDatabase() {
@@ -162,10 +163,16 @@ abstract class FluxLabDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE benchmark_sessions ADD COLUMN visualMode TEXT NOT NULL DEFAULT 'REDUCED'")
+            }
+        }
+
         fun create(context: Context): FluxLabDatabase = Room.databaseBuilder(
             context.applicationContext,
             FluxLabDatabase::class.java,
             "fluxlab.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
 }

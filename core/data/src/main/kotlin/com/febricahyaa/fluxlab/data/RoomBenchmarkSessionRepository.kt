@@ -1,6 +1,7 @@
 package com.febricahyaa.fluxlab.data
 
 import com.febricahyaa.fluxlab.model.BenchmarkEnvironment
+import com.febricahyaa.fluxlab.model.BenchmarkVisualMode
 import com.febricahyaa.fluxlab.model.BenchmarkSession
 import com.febricahyaa.fluxlab.model.BenchmarkSessionRepository
 import com.febricahyaa.fluxlab.model.ComparisonRole
@@ -37,7 +38,7 @@ class RoomBenchmarkSessionRepository(private val dao: BenchmarkDao) : BenchmarkS
         environment.rootState, environment.charging, environment.batteryLevel,
         environment.initialBatteryTemperatureC, environment.peakBatteryTemperatureC,
         environment.androidThermalStatus, environment.thermalHeadroomSamples.joinToString(","),
-        environment.refreshRateHz, warnings.joinToString("\n"), failureReason, comparisonRole.name, methodology.encode(),
+        environment.refreshRateHz, warnings.joinToString("\n"), failureReason, comparisonRole.name, methodology.encode(), environment.visualMode.name,
     )
 
     private fun WorkloadResult.toEntity(sessionId: String): WorkloadResultEntity = WorkloadResultEntity(
@@ -67,6 +68,7 @@ class RoomBenchmarkSessionRepository(private val dao: BenchmarkDao) : BenchmarkS
             entity.charging, entity.batteryLevel, entity.initialBatteryTemperatureC,
             entity.peakBatteryTemperatureC, entity.androidThermalStatus,
             doubles(entity.thermalHeadroomSamples), entity.refreshRateHz,
+            visualMode = runCatching { BenchmarkVisualMode.valueOf(entity.visualMode) }.getOrDefault(BenchmarkVisualMode.REDUCED),
         )
         return BenchmarkSession(
             entity.id, entity.startedAtEpochMs, entity.endedAtEpochMs, SessionStatus.valueOf(entity.status),
