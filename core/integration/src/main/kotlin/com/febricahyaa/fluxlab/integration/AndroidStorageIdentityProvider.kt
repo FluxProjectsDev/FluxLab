@@ -163,7 +163,7 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
                 },
                 lifetimeA = a,
                 lifetimeB = b,
-                rawDescriptor = values.entries.joinToString(";") { it.first + "=" + it.second },
+                rawDescriptor = values.entries.joinToString(";") { it.key + "=" + it.value },
                 source = device.path,
                 confidence = if (a.confidence == BatteryPowerConfidence.MEDIUM || b.confidence == BatteryPowerConfidence.MEDIUM) {
                     BatteryPowerConfidence.MEDIUM

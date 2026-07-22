@@ -28,7 +28,7 @@ object ProcStatParser {
 
     fun usage(previous: CpuTimes?, current: CpuTimes?): Double? {
         val previousValues = previous?.normalizedFields() ?: return null
-        val currentValues = current.normalizedFields()
+        val currentValues = current?.normalizedFields() ?: return null
         if (currentValues.indices.any { currentValues[it] < previousValues[it] }) return null
         val previousTotal = previous.safeTotal() ?: return null
         val currentTotal = current.safeTotal() ?: return null
