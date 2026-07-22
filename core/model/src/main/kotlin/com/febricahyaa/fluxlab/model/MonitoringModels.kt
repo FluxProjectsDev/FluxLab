@@ -1,6 +1,6 @@
 package com.febricahyaa.fluxlab.model
 
-enum class MonitoringState { INACTIVE, STARTING, ACTIVE, PAUSED, UNAVAILABLE }
+enum class MonitoringState { INACTIVE, STARTING, COLLECTING_INITIAL_SAMPLES, ACTIVE, PAUSED, TEMPORARILY_UNAVAILABLE, UNSUPPORTED, PERMISSION_DENIED, FAILED }
 
 /** Fixed-size history used by charts; adding a sample never grows without bound. */
 class SampleRingBuffer<T>(private val capacity: Int = 120) {
