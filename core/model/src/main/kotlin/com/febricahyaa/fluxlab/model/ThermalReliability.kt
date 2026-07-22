@@ -102,11 +102,31 @@ data class NormalizedTemperature(
 )
 
 /** Normalizes common Android thermal sensor encodings without guessing a sensor type. */
+object ThermalSensorClassifier {
+    fun classify(rawName: String): ThermalSensorGroup {
+        val name = rawName.lowercase()
+        return when {
+            listOf("cpu", "soc", "cluster").any(name::contains) -> ThermalSensorGroup.CPU
+            listOf("gpu", "kgsl", "adreno", "mali").any(name::contains) -> ThermalSensorGroup.GPU
+            listOf("battery", "batt").any(name::contains) -> ThermalSensorGroup.BATTERY
+            listOf("charger", "charge", "usb").any(name::contains) -> ThermalSensorGroup.CHARGER
+            listOf("modem", "radio", "mdm").any(name::contains) -> ThermalSensorGroup.MODEM
+            listOf("wifi", "wlan").any(name::contains) -> ThermalSensorGroup.WIFI
+            listOf("skin", "skin_temp", "case").any(name::contains) -> ThermalSensorGroup.SKIN
+            listOf("pmic", "power").any(name::contains) -> ThermalSensorGroup.PMIC
+            listOf("camera", "cam").any(name::contains) -> ThermalSensorGroup.CAMERA
+            listOf("display", "panel", "lcd", "oled").any(name::contains) -> ThermalSensorGroup.DISPLAY
+            else -> ThermalSensorGroup.OTHER
+        }
+    }
+}
+
 object ThermalTemperatureNormalizer {
     private const val MIN_CELSIUS = -40.0
     private const val MAX_CELSIUS = 150.0
 
     fun normalize(rawValue: Long): NormalizedTemperature? {
+        if (rawValue == 0L) return null
         val magnitude = kotlin.math.abs(rawValue)
         val candidates = when {
             magnitude <= 200L -> listOf(rawValue.toDouble() to TemperatureUnitSource.CELSIUS)
