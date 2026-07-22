@@ -10,7 +10,12 @@ enum class StorageHealthState {
     INFORMATION_UNAVAILABLE,
     DESCRIPTOR_UNAVAILABLE,
     DESCRIPTOR_MALFORMED,
+    PERMISSION_DENIED,
+    UNSUPPORTED,
+    UNKNOWN,
 }
+
+enum class StorageHealthAvailability { AVAILABLE, DESCRIPTOR_UNAVAILABLE, PERMISSION_DENIED, UNSUPPORTED, MALFORMED, UNKNOWN }
 
 data class StorageLifetimeEstimate(
     val rawValue: String? = null,
@@ -29,6 +34,11 @@ data class StorageIdentity(
     val storageVendor: String? = null,
     val storageRevision: String? = null,
     val blockDevice: String? = null,
+    val logicalBlockDevice: String? = null,
+    val physicalBackingDevice: String? = null,
+    val topologySteps: List<String> = emptyList(),
+    val transportEvidence: List<String> = emptyList(),
+    val transportConfidence: IdentityConfidence = IdentityConfidence.UNAVAILABLE,
     val logicalBlockSize: Long? = null,
     val physicalBlockSize: Long? = null,
     val totalCapacityBytes: Long? = null,
@@ -43,6 +53,7 @@ data class StorageIdentity(
 
 data class StorageHealth(
     val state: StorageHealthState = StorageHealthState.INFORMATION_UNAVAILABLE,
+    val availability: StorageHealthAvailability = StorageHealthAvailability.UNKNOWN,
     val lifetimeA: StorageLifetimeEstimate = StorageLifetimeEstimate(),
     val lifetimeB: StorageLifetimeEstimate = StorageLifetimeEstimate(),
     val preEndOfLife: String? = null,
@@ -92,7 +103,7 @@ object StorageLifetimeParser {
     }
 
     fun parseEmmcExtCsd(raw: String?, source: String?): StorageHealth {
-        if (raw.isNullOrBlank()) return StorageHealth(source = source, warnings = listOf("eMMC lifetime descriptor is unavailable"))
+        if (raw.isNullOrBlank()) return StorageHealth(source = source, availability = StorageHealthAvailability.DESCRIPTOR_UNAVAILABLE, warnings = listOf("eMMC lifetime descriptor is unavailable"))
         val fields = raw.lineSequence().mapNotNull { line ->
             val split = line.split('=', limit = 2)
             if (split.size == 2) split[0].trim().uppercase() to split[1].trim() else null
@@ -103,7 +114,12 @@ object StorageLifetimeParser {
         val preValid = pre?.removePrefix("0x")?.toIntOrNull(16)?.takeIf { it in 1..3 }
         val warnings = listOfNotNull(a.warning, b.warning, if (pre != null && preValid == null) "Reserved PRE_EOL_INFO value" else null)
         val state = listOf(a.normalizedState, b.normalizedState).maxByOrNull { it.ordinal } ?: StorageHealthState.DESCRIPTOR_UNAVAILABLE
-        return StorageHealth(state, a, b, preValid?.toString(), raw, source, 1, BatteryPowerConfidence.MEDIUM, warnings)
+        val availability = when {
+            a.normalizedState == StorageHealthState.DESCRIPTOR_MALFORMED || b.normalizedState == StorageHealthState.DESCRIPTOR_MALFORMED -> StorageHealthAvailability.MALFORMED
+            a.normalizedState == StorageHealthState.DESCRIPTOR_UNAVAILABLE && b.normalizedState == StorageHealthState.DESCRIPTOR_UNAVAILABLE -> StorageHealthAvailability.DESCRIPTOR_UNAVAILABLE
+            else -> StorageHealthAvailability.AVAILABLE
+        }
+        return StorageHealth(state, availability, a, b, preValid?.toString(), raw, source, 1, BatteryPowerConfidence.MEDIUM, warnings)
     }
 }
 
