@@ -90,9 +90,9 @@ object BatteryHealthParser {
 object BatteryHealthEstimator {
     fun estimate(fullChargeMilliAmpHours: Double?, designMilliAmpHours: Double?): Double? {
         if (fullChargeMilliAmpHours == null || designMilliAmpHours == null) return null
-        if (!fullChargeMilliAmpHours.isFinite() || !designMilliAmpHours.isFinite() || designMilliAmpHours <= 0.0) return null
+        if (!fullChargeMilliAmpHours.isFinite() || !designMilliAmpHours.isFinite() || fullChargeMilliAmpHours <= 0.0 || designMilliAmpHours <= 0.0) return null
         val estimate = fullChargeMilliAmpHours / designMilliAmpHours * 100.0
-        return estimate.takeIf { it.isFinite() && it in 1.0..150.0 }
+        return estimate.takeIf { it.isFinite() && it in 0.0..100.0 }
     }
 }
 
