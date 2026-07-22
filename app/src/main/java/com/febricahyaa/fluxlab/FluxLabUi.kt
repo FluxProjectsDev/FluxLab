@@ -69,6 +69,8 @@ private val destinations = listOf(
     Destination("settings", R.string.settings, Icons.Default.Settings),
 )
 
+internal fun isTopLevelRoute(route: String?): Boolean = destinations.any { it.route == route }
+
 @Composable
 fun FluxLabRoot() {
     val application = LocalContext.current.applicationContext as FluxLabApplication
@@ -100,17 +102,20 @@ private fun FluxLabNavigation(model: AppViewModel) {
             restoreState = true
         }
     }
+    val isTopLevelDestination = isTopLevelRoute(current)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (maxWidth >= 700.dp) {
             Row(Modifier.fillMaxSize()) {
-                NavigationRail {
-                    destinations.forEach { destination ->
-                        NavigationRailItem(
-                            selected = current == destination.route,
-                            onClick = { navigate(destination.route) },
-                            icon = { Icon(destination.icon, stringResource(destination.label)) },
-                            label = { androidx.compose.material3.Text(stringResource(destination.label)) },
-                        )
+                if (isTopLevelDestination) {
+                    NavigationRail {
+                        destinations.forEach { destination ->
+                            NavigationRailItem(
+                                selected = current == destination.route,
+                                onClick = { navigate(destination.route) },
+                                icon = { Icon(destination.icon, stringResource(destination.label)) },
+                                label = { androidx.compose.material3.Text(stringResource(destination.label)) },
+                            )
+                        }
                     }
                 }
                 Box(Modifier.weight(1f)) { FluxLabNavHost(navigation, model) }
@@ -118,14 +123,16 @@ private fun FluxLabNavigation(model: AppViewModel) {
         } else {
             Scaffold(
                 bottomBar = {
-                    NavigationBar {
-                        destinations.forEach { destination ->
-                            NavigationBarItem(
-                                selected = current == destination.route,
-                                onClick = { navigate(destination.route) },
-                                icon = { Icon(destination.icon, stringResource(destination.label)) },
-                                label = { androidx.compose.material3.Text(stringResource(destination.label)) },
-                            )
+                    if (isTopLevelDestination) {
+                        NavigationBar {
+                            destinations.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = current == destination.route,
+                                    onClick = { navigate(destination.route) },
+                                    icon = { Icon(destination.icon, stringResource(destination.label)) },
+                                    label = { androidx.compose.material3.Text(stringResource(destination.label)) },
+                                )
+                            }
                         }
                     }
                 },
