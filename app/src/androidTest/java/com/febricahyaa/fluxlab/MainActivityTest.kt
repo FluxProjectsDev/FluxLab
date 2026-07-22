@@ -3,6 +3,7 @@ package com.febricahyaa.fluxlab
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
@@ -19,6 +20,7 @@ class MainActivityTest {
     @Test
     fun activityStartsOnOverviewAndRemainsResumed() {
         composeRule.onNodeWithText("FluxLab").assertIsDisplayed()
+        composeRule.onAllNodesWithText("FluxLab").assertCountEquals(1)
         composeRule.onNodeWithText("Overview").assertIsDisplayed()
         composeRule.activityRule.scenario.onActivity { activity ->
             assertFalse(activity.isFinishing)

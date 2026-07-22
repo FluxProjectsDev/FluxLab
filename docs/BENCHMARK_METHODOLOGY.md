@@ -63,3 +63,17 @@ The app follows the system Material 3 theme by default, uses dynamic color on
 supported Android versions with a stable fallback palette, and enables edge to
 edge. Raw paths and normalization details remain in technical sections so the
 Overview stays readable while exports preserve source and warning metadata.
+
+
+## Phase 3.1 measurement integrity notes
+
+Preset allocation is read from the selected immutable 'BenchmarkPresetConfig' at run start: Quick,
+Standard, and Extended use distinct allocation ceilings and repetition counts. The UI formats
+that single byte value once; it does not concatenate a raw and localized representation.
+
+Live telemetry is sampled on the configured interval from the existing IO-backed source. Compose
+sparklines consume bounded histories of real samples and never perform filesystem reads during
+animation. A full benchmark visual mode is available for workload-specific feedback; reduced
+mode is the default and is persisted in session metadata because visuals can add observation
+overhead. Neither mode changes native measurements or pretends to provide progress that the
+engine has not reported.

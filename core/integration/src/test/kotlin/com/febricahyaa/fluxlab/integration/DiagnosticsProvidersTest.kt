@@ -10,6 +10,10 @@ import com.febricahyaa.fluxlab.model.StorageLifetimeParser
 import com.febricahyaa.fluxlab.model.StorageSafety
 import com.febricahyaa.fluxlab.model.StorageMetricLabels
 import com.febricahyaa.fluxlab.model.StorageType
+import com.febricahyaa.fluxlab.model.ThermalSensorClassifier
+import com.febricahyaa.fluxlab.model.ThermalSensorGroup
+import com.febricahyaa.fluxlab.model.ThermalTemperatureNormalizer
+import com.febricahyaa.fluxlab.model.TemperatureUnitSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -27,6 +31,7 @@ class DiagnosticsProvidersTest {
     @Test fun estimatedHealthRequiresValidatedDesignAndFullCapacity() {
         assertEquals(93.333, BatteryHealthEstimator.estimate(4_760.0, 5_100.0)!!, 0.01)
         assertNull(BatteryHealthEstimator.estimate(4_760.0, 0.0))
+        assertNull(BatteryHealthEstimator.estimate(5_200.0, 5_000.0))
     }
 
     @Test fun androidHealthValuesRemainSeparateFromNumericalHealth() {
@@ -69,4 +74,18 @@ class DiagnosticsProvidersTest {
         assertEquals(StorageType.UFS, StorageParsers.detectType("sda", "UFS device", "/sys/block/sda/device"))
         assertEquals(StorageType.VIRTUAL, StorageParsers.detectType("loop0", null, "/sys/devices/virtual/block/loop0"))
     }
+    @Test fun cpuFrequencyUnitsAreNormalizedConservatively() {
+        assertEquals(1_840_000_000L, CpuFrequencyParser.normalize("1840000", "scaling_cur_freq")!!.hz)
+        assertEquals(1_840_000_000L, CpuFrequencyParser.normalize("1840", "vendor_mhz")!!.hz)
+        assertNull(CpuFrequencyParser.normalize("0", "scaling_cur_freq"))
+    }
+
+    @Test fun thermalClassifierAndPlaceholderValidationAreDeterministic() {
+        assertEquals(ThermalSensorGroup.CPU, ThermalSensorClassifier.classify("cpu-cluster0"))
+        assertEquals(ThermalSensorGroup.SKIN, ThermalSensorClassifier.classify("skin_temp"))
+        assertEquals(ThermalSensorGroup.GPU, ThermalSensorClassifier.classify("gpu-therm"))
+        assertEquals(TemperatureUnitSource.MILLI_CELSIUS, ThermalTemperatureNormalizer.normalize(44_800)?.unitSource)
+        assertNull(ThermalTemperatureNormalizer.normalize(0))
+    }
+
 }
