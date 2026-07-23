@@ -37,7 +37,7 @@ class ReleaseSecurityBoundaryTest {
     }
 
     private fun repositoryFile(relativePath: String): File {
-        var directory = File(System.getProperty("user.dir")).absoluteFile
+        var directory = File(System.getProperty("user.dir") ?: error("Working directory unavailable")).absoluteFile
         while (true) {
             val candidate = File(directory, relativePath)
             if (candidate.isFile) return candidate
