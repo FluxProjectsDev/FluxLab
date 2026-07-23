@@ -1,6 +1,8 @@
 # Room's generated database implementation is referenced by Room's generated
 # code; no package-wide keep rule is needed. Entity/DAO names are not part of
 # the persisted schema contract, which keeps R8 free to optimize them.
+# Room resolves this concrete generated implementation by class name.
+-keep class com.febricahyaa.fluxlab.data.FluxLabDatabase_Impl { *; }
 
 # NativeBridge is reached by System.loadLibrary and JNI's generated symbol
 # names, so retain only this concrete bridge and its two native methods.
