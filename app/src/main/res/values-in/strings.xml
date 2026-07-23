@@ -56,6 +56,7 @@
     <string name="mark_baseline">Jadikan acuan</string>
     <string name="compare">Bandingkan</string>
     <string name="delete">Hapus</string>
+    <string name="delete_session_confirm">Hapus sesi tolok ukur tersimpan ini beserta data laporannya?</string>
     <string name="export_json">Ekspor JSON</string>
     <string name="export_csv">Ekspor CSV</string>
     <string name="select_session_report">Pilih sesi selesai dari halaman Sesi untuk diekspor.</string>

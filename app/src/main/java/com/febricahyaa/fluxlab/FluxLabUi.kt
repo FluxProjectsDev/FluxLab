@@ -3,8 +3,6 @@ package com.febricahyaa.fluxlab
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -17,8 +15,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -28,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -81,41 +76,23 @@ private fun FluxLabNavigation(model: AppViewModel) {
         }
     }
     val isTopLevelDestination = isTopLevelRoute(current)
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (maxWidth >= 700.dp) {
-            Row(Modifier.fillMaxSize()) {
-                if (isTopLevelDestination) {
-                    NavigationRail {
-                        destinations.forEach { destination ->
-                            NavigationRailItem(
-                                selected = current == destination.route,
-                                onClick = { navigate(destination.route) },
-                                icon = { Icon(destination.icon, stringResource(destination.label)) },
-                                label = { androidx.compose.material3.Text(stringResource(destination.label)) },
-                            )
-                        }
+    Scaffold(
+        bottomBar = {
+            if (isTopLevelDestination) {
+                NavigationBar {
+                    destinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = current == destination.route,
+                            onClick = { navigate(destination.route) },
+                            icon = { Icon(destination.icon, stringResource(destination.label)) },
+                            label = { androidx.compose.material3.Text(stringResource(destination.label)) },
+                        )
                     }
                 }
-                Box(Modifier.weight(1f)) { FluxLabNavHost(navigation, model) }
             }
-        } else {
-            Scaffold(
-                bottomBar = {
-                    if (isTopLevelDestination) {
-                        NavigationBar {
-                            destinations.forEach { destination ->
-                                NavigationBarItem(
-                                    selected = current == destination.route,
-                                    onClick = { navigate(destination.route) },
-                                    icon = { Icon(destination.icon, stringResource(destination.label)) },
-                                    label = { androidx.compose.material3.Text(stringResource(destination.label)) },
-                                )
-                            }
-                        }
-                    }
-                },
-            ) { padding -> Box(Modifier.padding(padding)) { FluxLabNavHost(navigation, model) } }
-        }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) { FluxLabNavHost(navigation, model) }
     }
 }
 
@@ -124,7 +101,10 @@ private fun FluxLabNavHost(navigation: androidx.navigation.NavHostController, mo
     NavHost(navigation, startDestination = "overview") {
         composable("overview") { OverviewScreen(model) { route -> navigation.navigate(route) } }
         composable("tests") { TestsScreen(model) { route -> navigation.navigate(route) } }
-        composable("sessions") { SessionsScreen(model) }
+        composable("sessions") { SessionsScreen(model) { route -> navigation.navigate(route) } }
+        composable("sessions/{sessionId}") { entry ->
+            SessionDetailScreen(model, onBack = { navigation.popBackStack() }, sessionId = entry.arguments?.getString("sessionId"))
+        }
         composable("reports") { ReportsScreen(model) }
         composable("settings") { SettingsScreen(model) }
         composable("benchmark/active") { ActiveBenchmarkScreen(model, onBack = { navigation.popBackStack() }) }

@@ -56,6 +56,7 @@
     <string name="mark_baseline">Mark baseline</string>
     <string name="compare">Compare</string>
     <string name="delete">Delete</string>
+    <string name="delete_session_confirm">Delete this stored benchmark session and its report data?</string>
     <string name="export_json">Export JSON</string>
     <string name="export_csv">Export CSV</string>
     <string name="select_session_report">Select a completed session to export from Sessions.</string>

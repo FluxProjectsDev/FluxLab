@@ -370,21 +370,21 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
 }
 
 @Composable
-fun SessionsScreen(model: AppViewModel) {
+fun SessionsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val sessions by model.sessions.collectAsStateWithLifecycle()
     Page(stringResource(R.string.sessions)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (sessions.isEmpty()) Text(stringResource(R.string.no_sessions))
-            sessions.forEach { session -> SessionCard(session, model) }
+            sessions.forEach { session -> SessionCard(session, model, onNavigate) }
         }
     }
 }
 
 @Composable
-private fun SessionCard(session: BenchmarkSession, model: AppViewModel) {
-    var expanded by remember(session.id) { mutableStateOf(false) }
+private fun SessionCard(session: BenchmarkSession, model: AppViewModel, onNavigate: (String) -> Unit) {
+    var deleteRequested by remember(session.id) { mutableStateOf(false) }
     Card(
-        onClick = { expanded = !expanded },
+        onClick = { onNavigate("sessions/${session.id}") },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -402,21 +402,31 @@ private fun SessionCard(session: BenchmarkSession, model: AppViewModel) {
             if (session.comparisonRole.name == "BASELINE") {
                 AssistChip(onClick = {}, label = { Text(stringResource(R.string.baseline)) })
             }
-            if (expanded) {
-                HorizontalDivider()
-                session.workloadResults.forEach { result ->
-                    Text("${workloadText(result.kind)} — ${engineeringFormat(result.statistics.median, result.unit)}")
+            session.workloadResults.firstOrNull()?.let { result ->
+                Text("${workloadText(result.kind)} — ${engineeringFormat(result.statistics.median, result.unit)}", style = MaterialTheme.typography.bodySmall)
+            }
+            session.failureReason?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (session.status == SessionStatus.COMPLETED) {
+                    TextButton(onClick = { model.markBaseline(session.id) }) { Text(stringResource(R.string.mark_baseline)) }
+                    TextButton(onClick = { model.compare(session.id) }) { Text(stringResource(R.string.compare)) }
                 }
-                session.failureReason?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (session.status == SessionStatus.COMPLETED) {
-                        TextButton(onClick = { model.markBaseline(session.id) }) { Text(stringResource(R.string.mark_baseline)) }
-                        TextButton(onClick = { model.compare(session.id) }) { Text(stringResource(R.string.compare)) }
-                    }
-                    TextButton(onClick = { model.deleteSession(session.id) }) { Text(stringResource(R.string.delete)) }
-                }
+                TextButton(onClick = { deleteRequested = true }) { Text(stringResource(R.string.delete)) }
             }
         }
+    }
+    if (deleteRequested) {
+        AlertDialog(
+            onDismissRequest = { deleteRequested = false },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text(stringResource(R.string.delete_session_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { model.deleteSession(session.id); deleteRequested = false }) {
+                    Text(stringResource(R.string.confirm_delete))
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleteRequested = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
