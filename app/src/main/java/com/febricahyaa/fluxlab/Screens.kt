@@ -36,7 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChevronRight
@@ -1034,11 +1034,11 @@ private fun thermalGroupText(value: com.febricahyaa.fluxlab.model.ThermalSensorG
 fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
     val state by model.dashboard.collectAsStateWithLifecycle()
     val telemetry = state.telemetry
-    val battery = telemetry?.battery
     DetailPage(stringResource(R.string.battery), onBack) {
-        if (battery == null || telemetry == null) {
+        if (telemetry == null) {
             LoadingDetail()
         } else {
+            val battery = telemetry.battery
             MetricCard(
                 stringResource(R.string.battery),
                 battery.levelPercent?.let { it.toString() + "%" } ?: stringResource(R.string.unknown),
@@ -1337,7 +1337,7 @@ private fun DetailPage(title: String, onBack: () -> Unit, content: @Composable (
             title = { Text(title) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, stringResource(R.string.navigate_back))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.navigate_back))
                 }
             },
         )
