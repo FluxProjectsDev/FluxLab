@@ -321,4 +321,8 @@
     <string name="charging_state_timeline">Charging-state timeline</string>
     <string name="language_english">English</string>
     <string name="language_indonesian">Bahasa Indonesia</string>
+    <string name="zram_compression">ZRAM compression ratio: %1$s</string>
+    <string name="swap_devices_value">Active swap devices: %1$d</string>
+    <string name="physical_capacity_value">Physical nominal capacity: %1$s</string>
+    <string name="capacity_source_value">Capacity source: %1$s</string>
 </resources>

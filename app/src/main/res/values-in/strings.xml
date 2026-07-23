@@ -321,4 +321,8 @@
     <string name="charging_state_timeline">Linimasa status pengisian</string>
     <string name="language_english">English</string>
     <string name="language_indonesian">Bahasa Indonesia</string>
+    <string name="zram_compression">Rasio kompresi ZRAM: %1$s</string>
+    <string name="swap_devices_value">Perangkat swap aktif: %1$d</string>
+    <string name="physical_capacity_value">Kapasitas nominal fisik: %1$s</string>
+    <string name="capacity_source_value">Sumber kapasitas: %1$s</string>
 </resources>

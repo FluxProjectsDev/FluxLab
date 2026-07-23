@@ -117,7 +117,7 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -274,7 +274,11 @@ private fun HeroStatusItem(
     onClick: () -> Unit,
 ) {
     val tint = if (positive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Card(onClick = onClick, modifier = modifier) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, label, tint = tint, modifier = Modifier.size(18.dp))
             Column(Modifier.weight(1f)) {
@@ -618,7 +622,7 @@ private fun MetricCard(
             role = Role.Button
             contentDescription = description
         },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Row(
             Modifier.padding(14.dp),
@@ -727,9 +731,10 @@ private fun languageName(value: LanguageSetting): String = when (value) {
 private fun unitText(value: UnitSetting): String = stringResource(if (value == UnitSetting.SI) R.string.unit_si else R.string.unit_iec)
 
 private fun format(value: Double, unit: String): String = String.format(Locale.getDefault(), "%.2f %s", value, unit)
+@Composable
 private fun memoryValue(used: Long?, total: Long?): String = if (used != null && total != null) {
     String.format(Locale.getDefault(), "%.1f / %.1f GiB", used / 1_048_576.0, total / 1_048_576.0)
-} else "—"
+} else stringResource(R.string.not_supported)
 
 @Composable
 private fun storageSummary(telemetry: com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot): String {
@@ -783,6 +788,8 @@ private fun monitoringStateText(state: MonitoringState): String = when (state) {
     MonitoringState.TEMPORARILY_UNAVAILABLE -> stringResource(R.string.monitoring_temporarily_unavailable)
     MonitoringState.UNSUPPORTED -> stringResource(R.string.not_supported)
     MonitoringState.PERMISSION_DENIED -> stringResource(R.string.permission_denied)
+    MonitoringState.MALFORMED -> stringResource(R.string.malformed)
+    MonitoringState.STALE -> stringResource(R.string.stale)
     MonitoringState.FAILED -> stringResource(R.string.monitoring_failed)
 }
 
@@ -905,11 +912,17 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                 Text(stringResource(R.string.maximum_frequency_value, it.gpu.maximumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.gpu_driver_value, it.gpu.driver ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.gpu_frequency_source, it.gpu.frequencySource ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.gpu_utilization_source, it.gpu.utilizationSource ?: it.gpu.utilizationAvailabilityReason ?: stringResource(R.string.gpu_utilization_unavailable)))
-                it.gpu.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
-                Text(stringResource(R.string.technical_details), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.gpu_raw_model, it.gpu.model ?: stringResource(R.string.not_supported)))
-                it.gpu.driverPath?.let { path -> Text(stringResource(R.string.gpu_driver_path, path), style = MaterialTheme.typography.bodySmall) }
+                var showGpuTechnical by remember { mutableStateOf(false) }
+                TextButton(onClick = { showGpuTechnical = !showGpuTechnical }) {
+                    Text(stringResource(if (showGpuTechnical) R.string.hide_technical_details else R.string.show_technical_details))
+                }
+                if (showGpuTechnical) {
+                    Text(stringResource(R.string.technical_details), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.gpu_raw_model, it.gpu.model ?: stringResource(R.string.not_supported)))
+                    it.gpu.driverPath?.let { path -> Text(stringResource(R.string.gpu_driver_path, path), style = MaterialTheme.typography.bodySmall) }
+                    Text(stringResource(R.string.gpu_utilization_source, it.gpu.utilizationSource ?: it.gpu.utilizationAvailabilityReason ?: stringResource(R.string.gpu_utilization_unavailable)))
+                    it.gpu.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
+                }
             } ?: LoadingDetail()
             MetricDetailKind.MEMORY -> telemetry?.let {
                 MetricCard(stringResource(R.string.memory), memoryValue(it.memory.usedKb, it.memory.totalKb),
@@ -924,6 +937,8 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                 Text(stringResource(R.string.buffers_value, it.memory.buffersKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.swap_value, it.memory.swapUsedKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.zram_value, it.memory.zramBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
+                it.memory.zramCompressionRatio?.let { ratio -> Text(stringResource(R.string.zram_compression, format(ratio, "x"))) }
+                if (it.memory.swapDevices.isNotEmpty()) Text(stringResource(R.string.swap_devices_value, it.memory.swapDevices.size))
                 it.memory.zramOriginalDataBytes?.let { value -> Text(stringResource(R.string.zram_original, formatBytes(value))) }
                 it.memory.zramMemoryUsedBytes?.let { value -> Text(stringResource(R.string.zram_used, formatBytes(value))) }
                 it.memory.zramCompressedDataBytes?.let { value -> Text(stringResource(R.string.zram_compressed, formatBytes(value))) }
@@ -931,7 +946,13 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                 Text(stringResource(R.string.psi_some_value, it.memory.psiSomeAvg10?.let { value -> format(value, "%") } ?: stringResource(R.string.psi_unavailable)))
                 Text(stringResource(R.string.psi_full_value, it.memory.psiFullAvg10?.let { value -> format(value, "%") } ?: stringResource(R.string.psi_unavailable)))
                 Text(stringResource(R.string.psi_pressure_value, memoryPressureText(it.memory.pressure)))
-                it.memory.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                var showMemoryTechnical by remember { mutableStateOf(false) }
+                TextButton(onClick = { showMemoryTechnical = !showMemoryTechnical }) {
+                    Text(stringResource(if (showMemoryTechnical) R.string.hide_technical_details else R.string.show_technical_details))
+                }
+                if (showMemoryTechnical) it.memory.warnings.forEach { warning ->
+                    Text(warning, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } ?: LoadingDetail()
             MetricDetailKind.THERMAL -> telemetry?.let {
                 MetricCard(stringResource(R.string.thermal),
@@ -1178,7 +1199,6 @@ fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
             Text(stringResource(R.string.storage_type_value, storageTypeText(storage.identity.storageType)))
             storage.identity.storageVendor?.let { Text(stringResource(R.string.vendor_value, it)) }
             storage.identity.storageRevision?.let { Text(stringResource(R.string.revision_value, it)) }
-            storage.identity.physicalBackingDevice?.let { Text(stringResource(R.string.physical_device_value, it)) }
             Text(stringResource(R.string.identity_confidence_value, confidenceText(storage.identity.identityConfidence)))
             if (storage.identity.storageType == com.febricahyaa.fluxlab.model.StorageType.UNKNOWN) {
                 Text(stringResource(R.string.storage_unknown_reason), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1186,6 +1206,8 @@ fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
             Text(stringResource(R.string.capacity), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.total_value, storage.identity.totalCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
             Text(stringResource(R.string.available_value, storage.identity.availableCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
+            storage.identity.physicalNominalCapacityBytes?.let { Text(stringResource(R.string.physical_capacity_value, formatBytes(it))) }
+            Text(stringResource(R.string.capacity_source_value, storage.identity.capacitySource ?: stringResource(R.string.not_supported)))
             Text(stringResource(R.string.filesystem_value, storage.identity.filesystem ?: stringResource(R.string.not_supported)))
             storage.identity.mountPoint?.let { Text(stringResource(R.string.mount_value, it)) }
 
@@ -1225,6 +1247,7 @@ fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
                 Text(stringResource(if (showTopology) R.string.hide_technical_details else R.string.show_technical_details))
             }
             if (showTopology) {
+                storage.identity.physicalBackingDevice?.let { Text(stringResource(R.string.physical_device_value, it)) }
                 storage.identity.topologySteps.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 storage.identity.transportEvidence.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 storage.identity.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
