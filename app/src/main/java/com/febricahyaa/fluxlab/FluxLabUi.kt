@@ -114,6 +114,7 @@ private fun FluxLabNavHost(navigation: androidx.navigation.NavHostController, mo
         composable("overview/thermal") { MetricDetailScreen(model, MetricDetailKind.THERMAL, onBack = { navigation.popBackStack() }) }
         composable("overview/battery") { BatteryDetailScreen(model, onBack = { navigation.popBackStack() }) }
         composable("overview/storage") { StorageDetailScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("overview/root") { MetricDetailScreen(model, MetricDetailKind.ROOT, onBack = { navigation.popBackStack() }) }
         composable("overview/flux") { MetricDetailScreen(model, MetricDetailKind.FLUX, onBack = { navigation.popBackStack() }) }
         composable("overview/synthesiscore") { MetricDetailScreen(model, MetricDetailKind.SYNTHESIS, onBack = { navigation.popBackStack() }) }
         composable("overview/profile") { MetricDetailScreen(model, MetricDetailKind.PROFILE, onBack = { navigation.popBackStack() }) }

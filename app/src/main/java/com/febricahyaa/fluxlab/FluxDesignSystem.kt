@@ -15,11 +15,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.max
@@ -59,6 +60,7 @@ object FluxSpacing {
     val cardInternalPadding = 16.dp
     val largeCardPadding = 20.dp
     val sectionGap = 20.dp
+    val heroIconContainer = 48.dp
 }
 
 object FluxShapes {
@@ -172,13 +174,19 @@ object FluxMetricColors {
 }
 
 @Composable
+fun fluxMetricColor(metric: FluxMetric): Color = FluxMetricColors.color(
+    metric = metric,
+    dark = MaterialTheme.colorScheme.background.luminance() < .5f,
+)
+
+@Composable
 fun FluxGauge(
     progress: Float?,
     accent: Color,
     modifier: Modifier = Modifier.size(72.dp),
     label: String? = null,
 ) {
-    val description = label ?: progress?.let { "${(it * 100f).toInt()}%" } ?: "Unavailable"
+    val description = label ?: progress?.let { "${(it * 100f).toInt()}%" } ?: stringResource(R.string.unavailable)
     Box(modifier.semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.matchParentSize()) {
             val stroke = FluxChartTokens.gaugeStrokeWidth.toPx()

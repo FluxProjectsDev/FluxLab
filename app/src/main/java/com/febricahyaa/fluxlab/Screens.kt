@@ -109,7 +109,7 @@ private fun Page(
 }
 
 @Composable
-fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
+private fun LegacyOverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val state by model.dashboard.collectAsStateWithLifecycle()
     val sessions by model.sessions.collectAsStateWithLifecycle()
     val telemetry = state.telemetry
@@ -244,6 +244,168 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                     Text(stringResource(if (state.monitoringState == MonitoringState.ACTIVE) R.string.stop_live_monitoring else R.string.start_live_monitoring))
                 }
             }
+        }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
+    val state by model.dashboard.collectAsStateWithLifecycle()
+    val sessions by model.sessions.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val telemetry = state.telemetry
+    Page(showHeader = false) {
+        Column(verticalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                shape = FluxShapes.material.large,
+                elevation = CardDefaults.cardElevation(defaultElevation = FluxElevation.hero),
+            ) {
+                Column(Modifier.padding(FluxSpacing.largeCardPadding), verticalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Box(Modifier.size(FluxSpacing.heroIconContainer), contentAlignment = androidx.compose.ui.Alignment.Center) { FluxWaveform() }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { onNavigate("settings") }) { Icon(Icons.Default.Tune, stringResource(R.string.settings)) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(monitoringStateText(state.monitoringState), style = MaterialTheme.typography.titleSmall)
+                            Text(samplingIntervalText(settings.samplingIntervalMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(state.monitoringStatus.warning ?: stringResource(R.string.monitoring_ready), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap)) {
+                        val monitoringRunning = state.monitoringState != MonitoringState.INACTIVE && state.monitoringState != MonitoringState.PAUSED
+                        Button(onClick = { model.setLiveMonitoring(!monitoringRunning) }, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(if (monitoringRunning) R.string.stop_live_monitoring else R.string.start_live_monitoring))
+                        }
+                        OutlinedButton(onClick = { onNavigate("settings") }) {
+                            Icon(Icons.Default.Tune, stringResource(R.string.settings))
+                            Text(stringResource(R.string.settings))
+                        }
+                    }
+                }
+            }
+            Text(stringResource(R.string.system_status), style = MaterialTheme.typography.titleMedium)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columns = if (maxWidth >= 720.dp) 3 else 2
+                FlowRow(
+                    maxItemsInEachRow = columns,
+                    horizontalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap),
+                    verticalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    HeroStatusItem(Modifier.fillMaxWidth(1f / columns), stringResource(R.string.root_status), rootText(state.root), state.root is RootState.Available, Icons.Default.Security) { onNavigate("overview/root") }
+                    HeroStatusItem(Modifier.fillMaxWidth(1f / columns), stringResource(R.string.flux_status), stringResource(if (state.flux.installed) R.string.installed else R.string.not_installed), state.flux.installed, Icons.Default.Bolt) { onNavigate("overview/flux") }
+                    HeroStatusItem(Modifier.fillMaxWidth(1f / columns), stringResource(R.string.synthesis_status), synthesisStatus(state.synthesis), state.synthesis is SynthesisReadResult.Success, Icons.Default.Sync) { onNavigate("overview/synthesiscore") }
+                }
+            }
+            Text(stringResource(R.string.system_summary), style = MaterialTheme.typography.titleMedium)
+            if (telemetry == null) {
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(FluxSpacing.cardInternalPadding), horizontalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap)) {
+                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.checking))
+                    }
+                }
+            } else {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val columns = if (maxWidth >= 720.dp) 3 else 2
+                    FlowRow(
+                        maxItemsInEachRow = columns,
+                        horizontalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap),
+                        verticalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        MetricCard(
+                            stringResource(R.string.cpu),
+                            telemetry.cpu.totalUsagePercent?.let(::usageText) ?: stringResource(R.string.collecting_initial_samples),
+                            listOfNotNull(
+                                telemetry.cpu.aggregateFrequencyHz?.let { format(it / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.frequency_unavailable),
+                                stringResource(R.string.cores_value, telemetry.cpu.coreCount),
+                                listOfNotNull(telemetry.cpu.identity.manufacturer, telemetry.cpu.identity.model).joinToString(" ").takeIf(String::isNotBlank),
+                            ).joinToString(" • "),
+                            Icons.Default.Memory,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/cpu") },
+                            sparkline = state.cpuHistory.map { it.second },
+                            metric = FluxMetric.CPU,
+                            gaugeProgress = telemetry.cpu.totalUsagePercent?.div(100.0)?.toFloat(),
+                        )
+                        MetricCard(
+                            stringResource(R.string.gpu),
+                            telemetry.gpu.utilizationPercent?.let(::usageText) ?: telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported),
+                            listOfNotNull(
+                                telemetry.gpu.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") },
+                                telemetry.gpu.utilizationPercent?.let { stringResource(R.string.live_sample) } ?: stringResource(R.string.gpu_utilization_unavailable),
+                                listOfNotNull(telemetry.gpu.vendor, telemetry.gpu.model).joinToString(" ").takeIf(String::isNotBlank),
+                            ).joinToString(" • "),
+                            Icons.Default.GraphicEq,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/gpu") },
+                            sparkline = state.gpuHistory.map { it.second },
+                            metric = FluxMetric.GPU,
+                            gaugeProgress = telemetry.gpu.utilizationPercent?.div(100.0)?.toFloat(),
+                        )
+                        val memoryRatio = telemetry.memory.usedKb?.toDouble()?.let { used -> telemetry.memory.totalKb?.takeIf { it > 0L }?.let { used / it } }
+                        MetricCard(
+                            stringResource(R.string.memory),
+                            memoryValue(telemetry.memory.usedKb, telemetry.memory.totalKb),
+                            listOfNotNull(
+                                telemetry.memory.zramBytes?.let { stringResource(R.string.zram_value, formatBytes(it)) },
+                                telemetry.memory.psiSomeAvg10?.let { stringResource(R.string.psi_value, format(it, "%")) } ?: stringResource(R.string.psi_unavailable),
+                                telemetry.memory.pressure.takeIf { it != MemoryPressure.UNAVAILABLE }?.let { stringResource(R.string.psi_pressure, memoryPressureText(it)) },
+                            ).joinToString(" • "),
+                            Icons.Default.DataUsage,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/memory") },
+                            sparkline = state.memoryHistory.map { it.second },
+                            metric = FluxMetric.MEMORY,
+                            gaugeProgress = memoryRatio?.toFloat(),
+                        )
+                        MetricCard(
+                            stringResource(R.string.storage),
+                            telemetry.storage.identity.totalCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported),
+                            listOfNotNull(storageTypeText(telemetry.storage.identity.storageType), telemetry.storage.identity.availableCapacityBytes?.let { stringResource(R.string.available_value, formatBytes(it)) } ?: stringResource(R.string.storage_identity_unavailable)).joinToString(" • "),
+                            Icons.Default.Storage,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/storage") },
+                            metric = FluxMetric.STORAGE,
+                            gaugeProgress = telemetry.storage.identity.totalCapacityBytes?.let { total -> telemetry.storage.identity.availableCapacityBytes?.let { available -> (1.0 - available.toDouble() / total).toFloat() } },
+                        )
+                        MetricCard(
+                            stringResource(R.string.thermal),
+                            telemetry.thermal.hottestZone?.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
+                            telemetry.thermal.hottestZone?.let { stringResource(R.string.hottest_sensor, it.name) } ?: stringResource(R.string.thermal_status_unavailable),
+                            Icons.Default.DeviceThermostat,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/thermal") },
+                            sparkline = state.thermalHistory.map { it.second },
+                            metric = FluxMetric.THERMAL,
+                        )
+                        MetricCard(
+                            stringResource(R.string.battery),
+                            telemetry.battery.levelPercent?.let { "$it%" } ?: stringResource(R.string.unknown),
+                            batteryPowerText(telemetry),
+                            Icons.Default.BatteryChargingFull,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { onNavigate("overview/battery") },
+                            sparkline = state.batteryHistory.map { it.second },
+                            metric = FluxMetric.BATTERY,
+                            gaugeProgress = telemetry.battery.levelPercent?.div(100f),
+                        )
+                    }
+                }
+            }
+            Text(stringResource(R.string.latest_session), style = MaterialTheme.typography.titleMedium)
+            sessions.firstOrNull()?.let { session ->
+                MetricCard(stringResource(R.string.latest_session), sessionLabel(session), sessionStatusText(session.status), Icons.Default.Analytics, onClick = { onNavigate("overview/latest-session") })
+            } ?: MetricCard(stringResource(R.string.latest_session), stringResource(R.string.no_sessions), stringResource(R.string.no_completed_sessions), Icons.Default.Analytics, onClick = { onNavigate("sessions") }, metric = FluxMetric.UNAVAILABLE)
         }
     }
 }
@@ -539,12 +701,17 @@ fun SettingsScreen(model: AppViewModel) {
                     FilterChip(settings.theme == value, { model.setTheme(value) }, label = { Text(themeName(value)) })
                 }
             }
+            SettingSection(stringResource(R.string.color_style)) {
+                ColorStyle.entries.forEach { value ->
+                    FilterChip(settings.colorStyle == value, { model.setColorStyle(value) }, label = { Text(colorStyleName(value)) })
+                }
+            }
             SettingSection(stringResource(R.string.sampling_interval)) {
                 listOf(500L, 1_000L, 2_000L).forEach { value ->
                     FilterChip(
                         selected = settings.samplingIntervalMs == value,
                         onClick = { model.setSamplingInterval(value) },
-                        label = { Text(if (value < 1_000) "${value} ms" else "${value / 1_000} s") },
+                        label = { Text(samplingIntervalText(value)) },
                     )
                 }
             }
@@ -622,36 +789,43 @@ private fun MetricCard(
     value: String,
     detail: String? = null,
     icon: ImageVector = Icons.Default.Info,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
     sparkline: List<Double?> = emptyList(),
+    metric: FluxMetric? = null,
+    gaugeProgress: Float? = null,
 ) {
+    val accent = metric?.let { fluxMetricColor(it) } ?: MaterialTheme.colorScheme.primary
     val description = listOfNotNull(title, value, detail).joinToString(", ")
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().semantics {
+        modifier = modifier.fillMaxWidth().semantics {
             role = Role.Button
             contentDescription = description
         },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = FluxShapes.material.medium,
     ) {
         Row(
-            Modifier.padding(14.dp),
+            Modifier.padding(FluxSpacing.cardInternalPadding),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
-                Modifier.size(44.dp),
+                Modifier.size(FluxSpacing.cardInternalPadding + 28.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
-                Icon(icon, title, tint = MaterialTheme.colorScheme.primary)
+                Icon(icon, title, tint = accent)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(title, style = MaterialTheme.typography.labelLarge, color = accent)
                 Text(value, style = MaterialTheme.typography.titleLarge)
                 detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            if (sparkline.count { it != null } >= 2) {
-                Sparkline(sparkline, Modifier.size(width = 72.dp, height = 34.dp))
+            if (gaugeProgress != null) {
+                FluxGauge(gaugeProgress, accent, Modifier.size(58.dp), value)
+            } else if (sparkline.count { it != null } >= 2) {
+                FluxSparkline(sparkline, accent, Modifier.size(width = 76.dp, height = 42.dp), stringResource(R.string.chart_history, title))
             } else {
                 Icon(Icons.Default.ChevronRight, stringResource(R.string.open_detail), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -726,6 +900,18 @@ private fun themeName(value: ThemeSetting): String = stringResource(
         ThemeSetting.LIGHT -> R.string.theme_light
         ThemeSetting.DARK -> R.string.theme_dark
     },
+)
+
+@Composable
+private fun samplingIntervalText(value: Long): String = if (value < 1_000L) {
+    stringResource(R.string.sampling_interval_milliseconds, value.toInt())
+} else {
+    stringResource(R.string.sampling_interval_seconds, (value / 1_000L).toInt())
+}
+
+@Composable
+private fun colorStyleName(value: ColorStyle): String = stringResource(
+    if (value == ColorStyle.FLUX) R.string.color_style_flux else R.string.color_style_dynamic,
 )
 
 @Composable
@@ -836,7 +1022,7 @@ private fun formatBytes(value: Long): String = when {
     else -> value.toString() + " B"
 }
 
-enum class MetricDetailKind { CPU, GPU, MEMORY, THERMAL, FLUX, SYNTHESIS, PROFILE }
+enum class MetricDetailKind { CPU, GPU, MEMORY, THERMAL, ROOT, FLUX, SYNTHESIS, PROFILE }
 
 @Composable
 private fun detailTitle(kind: MetricDetailKind): String = when (kind) {
@@ -844,6 +1030,7 @@ private fun detailTitle(kind: MetricDetailKind): String = when (kind) {
     MetricDetailKind.GPU -> stringResource(R.string.gpu)
     MetricDetailKind.MEMORY -> stringResource(R.string.memory)
     MetricDetailKind.THERMAL -> stringResource(R.string.thermal)
+    MetricDetailKind.ROOT -> stringResource(R.string.root_status)
     MetricDetailKind.FLUX -> stringResource(R.string.flux_status)
     MetricDetailKind.SYNTHESIS -> stringResource(R.string.synthesis_status)
     MetricDetailKind.PROFILE -> stringResource(R.string.active_profile)
@@ -991,6 +1178,17 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                     }
                 }
             } ?: LoadingDetail()
+            MetricDetailKind.ROOT -> {
+                val available = state.root is RootState.Available
+                MetricCard(
+                    stringResource(R.string.root_status),
+                    rootText(state.root),
+                    if (available) stringResource(R.string.root_full_access) else stringResource(R.string.root_capability_unavailable),
+                    Icons.Default.Security,
+                    metric = if (available) FluxMetric.SUCCESS else FluxMetric.UNAVAILABLE,
+                )
+                Text(stringResource(R.string.root_detail_summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             MetricDetailKind.FLUX -> {
                 MetricCard(stringResource(R.string.flux_status), stringResource(if (state.flux.installed) R.string.installed else R.string.not_installed), state.flux.versionName, Icons.Default.Bolt)
                 state.flux.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }

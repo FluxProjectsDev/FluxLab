@@ -11,6 +11,11 @@
     <string name="flux_status">Status Flux</string>
     <string name="synthesis_status">Status SynthesisCore</string>
     <string name="root_status">Akses root</string>
+    <string name="root_full_access">Akses penuh</string>
+    <string name="root_capability_unavailable">Kemampuan root tidak tersedia.</string>
+    <string name="root_detail_summary">Status root dibaca dari gateway root tervalidasi. FluxLab tidak menyimpulkan akses dari nama perangkat atau tampilan.</string>
+    <string name="system_status">Status sistem</string>
+    <string name="system_summary">Ringkasan sistem</string>
     <string name="active_profile">Profil aktif</string>
     <string name="available">Tersedia</string>
     <string name="unavailable">Tidak tersedia</string>
@@ -136,6 +141,7 @@
     <string name="power_unavailable">Data daya tidak tersedia</string>
     <string name="cycle_count_unavailable">Jumlah siklus tidak disediakan oleh perangkat ini.</string>
     <string name="open_detail">Buka detail</string>
+    <string name="chart_history">Riwayat %1$s</string>
     <string name="collecting_initial_samples">Mengumpulkan sampel awal</string>
     <string name="frequency_unavailable">Frekuensi tidak tersedia</string>
     <string name="zram_value">ZRAM %1$s</string>
@@ -150,6 +156,10 @@
     <string name="monitoring_paused">Pemantauan dijeda</string>
     <string name="monitoring_temporarily_unavailable">Telemetri sementara tidak tersedia</string>
     <string name="monitoring_failed">Pemantauan gagal</string>
+    <string name="monitoring_ready">Siap mengumpulkan</string>
+    <string name="sampling_interval_milliseconds">%1$d mdtk</string>
+    <string name="sampling_interval_seconds">%1$d detik</string>
+    <string name="cores_value">%1$d inti</string>
     <string name="charging">Mengisi daya</string>
     <string name="discharging">Menggunakan baterai</string>
     <string name="full">Penuh</string>

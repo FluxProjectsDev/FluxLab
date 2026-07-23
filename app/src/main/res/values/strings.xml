@@ -11,6 +11,11 @@
     <string name="flux_status">Flux status</string>
     <string name="synthesis_status">SynthesisCore status</string>
     <string name="root_status">Root access</string>
+    <string name="root_full_access">Full access</string>
+    <string name="root_capability_unavailable">Root capabilities are unavailable.</string>
+    <string name="root_detail_summary">Root state is read from the validated root gateway. FluxLab does not infer access from device names or UI state.</string>
+    <string name="system_status">System status</string>
+    <string name="system_summary">System summary</string>
     <string name="active_profile">Active profile</string>
     <string name="available">Available</string>
     <string name="unavailable">Unavailable</string>
@@ -136,6 +141,7 @@
     <string name="power_unavailable">Power unavailable</string>
     <string name="cycle_count_unavailable">Cycle count is not exposed by this device.</string>
     <string name="open_detail">Open details</string>
+    <string name="chart_history">%1$s history</string>
     <string name="collecting_initial_samples">Collecting initial samples</string>
     <string name="frequency_unavailable">Frequency unavailable</string>
     <string name="zram_value">ZRAM %1$s</string>
@@ -150,6 +156,10 @@
     <string name="monitoring_paused">Monitoring paused</string>
     <string name="monitoring_temporarily_unavailable">Telemetry temporarily unavailable</string>
     <string name="monitoring_failed">Monitoring failed</string>
+    <string name="monitoring_ready">Ready to collect</string>
+    <string name="sampling_interval_milliseconds">%1$d ms</string>
+    <string name="sampling_interval_seconds">%1$d seconds</string>
+    <string name="cores_value">%1$d cores</string>
     <string name="charging">Charging</string>
     <string name="discharging">Using battery</string>
     <string name="full">Full</string>
