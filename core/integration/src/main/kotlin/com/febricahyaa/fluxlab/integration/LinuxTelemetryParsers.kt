@@ -69,6 +69,30 @@ object ProcStatParser {
     }.getOrNull()
 }
 
+object CpuPolicyParser {
+    fun parseCpuList(raw: String?): Set<Int> {
+        if (raw.isNullOrBlank()) return emptySet()
+        val result = mutableSetOf<Int>()
+        raw.trim().split(Regex("[,\\s]+")).forEach { segment ->
+            if (segment.isBlank()) return@forEach
+            if ('-' in segment) {
+                val parts = segment.split('-', limit = 2)
+                val start = parts.getOrNull(0)?.toIntOrNull()
+                val end = parts.getOrNull(1)?.toIntOrNull()
+                if (start == null || end == null || start !in 0..1023 || end !in start..1023) return emptySet()
+                result += start..end
+            } else {
+                val index = segment.toIntOrNull() ?: return emptySet()
+                if (index !in 0..1023) return emptySet()
+                result += index
+            }
+        }
+        return result
+    }
+
+    fun containsCpu(raw: String?, index: Int): Boolean = index in parseCpuList(raw)
+}
+
 object MemInfoParser {
     fun parse(text: String): Map<String, Long> = text.lineSequence().mapNotNull { line ->
         val split = line.indexOf(':')

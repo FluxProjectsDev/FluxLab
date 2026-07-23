@@ -101,4 +101,13 @@ class LinuxTelemetryParsersTest {
         assertNull(PsiParser.parse("full avg10=nope").fullAvg10)
     }
 
+    @Test
+    fun policyCpuListsMapSharedClustersWithoutHardcodingCoreCount() {
+        assertEquals(setOf(0, 1, 2, 3), CpuPolicyParser.parseCpuList("0-3"))
+        assertEquals(setOf(0, 2, 4), CpuPolicyParser.parseCpuList("0,2,4"))
+        assertTrue(CpuPolicyParser.containsCpu("4-7", 6))
+        assertTrue(!CpuPolicyParser.containsCpu("4-7", 2))
+        assertTrue(CpuPolicyParser.parseCpuList("malformed").isEmpty())
+    }
+
 }

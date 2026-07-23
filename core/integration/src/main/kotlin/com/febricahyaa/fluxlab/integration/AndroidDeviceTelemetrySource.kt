@@ -23,6 +23,7 @@ import com.febricahyaa.fluxlab.model.CpuCoreTelemetry
 import com.febricahyaa.fluxlab.model.CpuIdentity
 import com.febricahyaa.fluxlab.model.CpuIdentityProvider
 import com.febricahyaa.fluxlab.model.CpuTelemetry
+import com.febricahyaa.fluxlab.model.CpuTelemetryState
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySource
 import com.febricahyaa.fluxlab.model.GpuCapabilityProvider
@@ -96,8 +97,7 @@ class AndroidDeviceTelemetrySource(
             .sorted()
         val cores = indices.map { index ->
             val cpuDirectory = "/sys/devices/system/cpu/cpu$index/cpufreq"
-            val policyDirectory = "/sys/devices/system/cpu/cpufreq/policy$index"
-                .takeIf { File(it).isDirectory }
+            val policyDirectory = findPolicyDirectory(index)
             val frequencyDirectory = policyDirectory ?: cpuDirectory
             val currentFrequency = readFrequency(
                 listOf(
@@ -146,8 +146,14 @@ class AndroidDeviceTelemetrySource(
             .takeIf { it.isNotEmpty() }
             ?.average()
             ?.toLong()
+        val aggregateUsage = ProcStatParser.usage(previous["cpu"], current["cpu"])
+        val sampleState = when (ProcStatParser.sampleState(previous, current)) {
+            CpuSampleState.COLLECTING_INITIAL_SAMPLES -> CpuTelemetryState.COLLECTING_INITIAL_SAMPLES
+            CpuSampleState.ACTIVE -> CpuTelemetryState.ACTIVE
+            CpuSampleState.TEMPORARILY_UNAVAILABLE -> CpuTelemetryState.TEMPORARILY_UNAVAILABLE
+        }
         return CpuTelemetry(
-            totalUsagePercent = ProcStatParser.usage(previous["cpu"], current["cpu"]),
+            totalUsagePercent = aggregateUsage,
             cores = cores,
             architecture = identity.supportedAbis.firstOrNull() ?: System.getProperty("os.arch").orEmpty(),
             coreCount = indices.size.coerceAtLeast(identity.coreCount).coerceAtLeast(1),
@@ -158,8 +164,23 @@ class AndroidDeviceTelemetrySource(
                 aggregateFrequency != null -> com.febricahyaa.fluxlab.model.IdentityConfidence.MEDIUM
                 else -> com.febricahyaa.fluxlab.model.IdentityConfidence.UNAVAILABLE
             },
+            sampleState = sampleState,
+            aggregateFrequencyMethod = "Average of one current frequency per online policy",
         )
     }
+
+    private fun findPolicyDirectory(index: Int): String? =
+        File("/sys/devices/system/cpu/cpufreq").listFiles()
+            ?.asSequence()
+            ?.filter { it.isDirectory && it.name.startsWith("policy") }
+            ?.firstOrNull { directory ->
+                CpuPolicyParser.containsCpu(
+                    readText(File(directory, "related_cpus").path)
+                        ?: readText(File(directory, "affected_cpus").path),
+                    index,
+                )
+            }
+            ?.path
 
     private fun readMemory(): MemoryTelemetry {
         val info = readText("/proc/meminfo")?.let(MemInfoParser::parse).orEmpty()

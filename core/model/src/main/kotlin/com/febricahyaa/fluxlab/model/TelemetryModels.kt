@@ -39,6 +39,12 @@ data class CpuCoreTelemetry(
     val cluster: String? = null,
 )
 
+enum class CpuTelemetryState {
+    COLLECTING_INITIAL_SAMPLES,
+    ACTIVE,
+    TEMPORARILY_UNAVAILABLE,
+}
+
 data class CpuTelemetry(
     val totalUsagePercent: Double?,
     val cores: List<CpuCoreTelemetry>,
@@ -48,6 +54,10 @@ data class CpuTelemetry(
     val aggregateFrequencyHz: Long? = null,
     val frequencySource: String? = null,
     val frequencyConfidence: IdentityConfidence = IdentityConfidence.UNAVAILABLE,
+    val sampleState: CpuTelemetryState = if (totalUsagePercent == null) {
+        CpuTelemetryState.COLLECTING_INITIAL_SAMPLES
+    } else CpuTelemetryState.ACTIVE,
+    val aggregateFrequencyMethod: String? = null,
 )
 
 enum class MemoryPressure { NORMAL, ELEVATED, HIGH, UNAVAILABLE }
