@@ -56,4 +56,3 @@ descriptors, thermal zones, and battery capacity nodes varies. Unsupported or
 permission-denied information remains unavailable rather than inferred from
 device marketing names or guessed battery capacities. Garnet acceptance still
 requires hosted APK testing on the target device.
-
