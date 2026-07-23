@@ -21,8 +21,11 @@ class NativeBenchmarkWorkload(
     override val kind: WorkloadKind,
     private val preset: BenchmarkPresetConfig,
     private val seed: Long = 0x46_4C_55_58_4C,
+    private val onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> },
 ) : BenchmarkWorkload {
     override val version: Int = 2
+    val configuredThreadCount: Int
+        get() = configuration(kind, preset.workloadScale).threads
 
     override suspend fun run(): WorkloadResult = withContext(Dispatchers.Default) {
         val config = configuration(kind, preset.workloadScale)
@@ -43,6 +46,7 @@ class NativeBenchmarkWorkload(
             checksum += result[1]
             durations += result[2].toLong()
             actualThreads = result[3].toInt().coerceAtLeast(1)
+            onProgress(repetition + 1, preset.measuredRepetitionCount)
         }
         WorkloadResult(
             kind = kind,

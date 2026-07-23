@@ -145,6 +145,12 @@ class AppViewModel(application: Application, private val container: AppContainer
 
     fun startQuickTest() {
         if (benchmarkJob?.isActive == true || readiness() is ReadinessResult.Blocked) return
+        // Capture all run-affecting settings before launching the coroutine. A later
+        // chip selection must not mutate the configuration already shown on the run screen.
+        val selectedPreset = settings.value.preset
+        val selectedVisualMode = settings.value.visualMode
+        val selectedIncludeStorage = settings.value.includeStorage
+        val selectedConfiguration = BenchmarkPresetConfig.forPreset(selectedPreset)
         benchmarkJob = viewModelScope.launch {
             val telemetry = dashboard.value.telemetry ?: return@launch
             val environment = BenchmarkEnvironment(
@@ -164,10 +170,10 @@ class AppViewModel(application: Application, private val container: AppContainer
                 androidThermalStatus = telemetry.thermal.androidStatus,
                 thermalHeadroomSamples = listOfNotNull(telemetry.thermal.headroom),
                 refreshRateHz = telemetry.system.refreshRateHz,
-                presetConfiguration = BenchmarkPresetConfig.forPreset(settings.value.preset),
-                visualMode = settings.value.visualMode,
+                presetConfiguration = selectedConfiguration,
+                visualMode = selectedVisualMode,
             )
-            engine.run(environment, settings.value.includeStorage)
+            engine.run(environment, selectedIncludeStorage)
         }
     }
 

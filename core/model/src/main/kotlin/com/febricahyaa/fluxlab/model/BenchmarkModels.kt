@@ -235,6 +235,7 @@ data class BenchmarkProgress(
     val visualMode: BenchmarkVisualMode = BenchmarkVisualMode.REDUCED,
     val warnings: List<String> = emptyList(),
     val preset: BenchmarkPreset? = null,
+    val activeThreadCount: Int? = null,
 )
 
 enum class BenchmarkStage {

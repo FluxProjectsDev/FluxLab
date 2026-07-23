@@ -83,10 +83,23 @@ class QuickTestEngine(
             session = update(session, SessionStatus.WARMING_UP, results, warnings, null, headrooms, peakBattery)
             nativeKinds.forEachIndexed { index, kind ->
                 mutableProgress.value = BenchmarkProgress(id, SessionStatus.WARMING_UP, kind, index, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.WARMUP, workloadIndex = index, totalWorkloads = total, totalRepetitions = config.warmUpCount, visualMode = initialEnvironment.visualMode, preset = config.preset, elapsedMs = clock() - started)
-                activeWorkload = NativeBenchmarkWorkload(kind, config)
+                activeWorkload = NativeBenchmarkWorkload(kind, config) { completed, totalRepetitions ->
+                    mutableProgress.value = mutableProgress.value.copy(
+                        currentRepetition = completed,
+                        totalRepetitions = totalRepetitions,
+                        activeThreadCount = (activeWorkload as? NativeBenchmarkWorkload)?.configuredThreadCount,
+                    )
+                }
                 session = update(session, SessionStatus.RUNNING, results, warnings, null, headrooms, peakBattery)
                 mutableProgress.value = BenchmarkProgress(id, SessionStatus.RUNNING, kind, index, total, stage = com.febricahyaa.fluxlab.model.BenchmarkStage.RUNNING, workloadIndex = index, totalWorkloads = total, currentRepetition = 0, totalRepetitions = config.measuredRepetitionCount, visualMode = initialEnvironment.visualMode, preset = config.preset, elapsedMs = clock() - started)
                 results += requireNotNull(activeWorkload).run()
+                mutableProgress.value = mutableProgress.value.copy(
+                    completedSteps = results.size.coerceAtMost(total),
+                    workloadIndex = results.size.coerceAtMost(total),
+                    currentRepetition = config.measuredRepetitionCount,
+                    totalRepetitions = config.measuredRepetitionCount,
+                    elapsedMs = clock() - started,
+                )
                 telemetryProvider()?.let { telemetry ->
                     telemetry.thermal.headroom?.let(headrooms::add)
                     telemetry.battery.temperatureCelsius?.let { peakBattery = maxOf(peakBattery ?: it, it) }
