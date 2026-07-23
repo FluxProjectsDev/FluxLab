@@ -64,6 +64,9 @@
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="color_style">Color style</string>
+    <string name="color_style_flux">Flux</string>
+    <string name="color_style_dynamic">Dynamic system</string>
     <string name="sampling_interval">Sampling interval</string>
     <string name="include_storage">Include storage workloads</string>
     <string name="advanced_metrics">Show advanced metrics</string>

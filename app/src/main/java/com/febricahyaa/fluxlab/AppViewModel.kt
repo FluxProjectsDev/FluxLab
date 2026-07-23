@@ -232,6 +232,7 @@ class AppViewModel(application: Application, private val container: AppContainer
     }
 
     fun setTheme(value: ThemeSetting) = viewModelScope.launch { container.settingsStore.setTheme(value) }
+    fun setColorStyle(value: ColorStyle) = viewModelScope.launch { container.settingsStore.setColorStyle(value) }
     fun setSamplingInterval(value: Long) = viewModelScope.launch { container.settingsStore.setInterval(value) }
     fun setPreset(value: com.febricahyaa.fluxlab.model.BenchmarkPreset) = viewModelScope.launch { container.settingsStore.setPreset(value) }
     fun setVisualMode(value: com.febricahyaa.fluxlab.model.BenchmarkVisualMode) = viewModelScope.launch { container.settingsStore.setVisualMode(value) }

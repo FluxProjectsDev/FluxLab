@@ -64,6 +64,9 @@
     <string name="theme_system">Ikuti sistem</string>
     <string name="theme_light">Terang</string>
     <string name="theme_dark">Gelap</string>
+    <string name="color_style">Gaya warna</string>
+    <string name="color_style_flux">Flux</string>
+    <string name="color_style_dynamic">Warna dinamis sistem</string>
     <string name="sampling_interval">Interval pengambilan sampel</string>
     <string name="include_storage">Sertakan beban penyimpanan</string>
     <string name="advanced_metrics">Tampilkan metrik lanjutan</string>

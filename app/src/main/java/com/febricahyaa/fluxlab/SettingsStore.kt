@@ -15,11 +15,13 @@ import kotlinx.coroutines.flow.map
 private val Context.settingsDataStore by preferencesDataStore("fluxlab_settings")
 
 enum class ThemeSetting { SYSTEM, LIGHT, DARK }
+enum class ColorStyle { FLUX, DYNAMIC }
 enum class UnitSetting { SI, IEC }
 enum class LanguageSetting { SYSTEM, ENGLISH, INDONESIAN }
 
 data class AppSettings(
     val theme: ThemeSetting = ThemeSetting.SYSTEM,
+    val colorStyle: ColorStyle = ColorStyle.FLUX,
     val samplingIntervalMs: Long = 1_000L,
     val includeStorage: Boolean = true,
     val advancedMetrics: Boolean = false,
@@ -35,6 +37,7 @@ class SettingsStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { preferences ->
         AppSettings(
             theme = enumValue(preferences[THEME], ThemeSetting.SYSTEM),
+            colorStyle = enumValue(preferences[COLOR_STYLE], ColorStyle.FLUX),
             samplingIntervalMs = (preferences[INTERVAL] ?: 1_000L).coerceIn(250L, 10_000L),
             includeStorage = preferences[STORAGE] ?: true,
             advancedMetrics = preferences[ADVANCED] ?: false,
@@ -48,6 +51,7 @@ class SettingsStore(private val context: Context) {
     }
 
     suspend fun setTheme(value: ThemeSetting) = context.settingsDataStore.edit { it[THEME] = value.name }
+    suspend fun setColorStyle(value: ColorStyle) = context.settingsDataStore.edit { it[COLOR_STYLE] = value.name }
     suspend fun setInterval(value: Long) = context.settingsDataStore.edit { it[INTERVAL] = value.coerceIn(250L, 10_000L) }
     suspend fun setStorage(value: Boolean) = context.settingsDataStore.edit { it[STORAGE] = value }
     suspend fun setAdvanced(value: Boolean) = context.settingsDataStore.edit { it[ADVANCED] = value }
@@ -65,6 +69,7 @@ class SettingsStore(private val context: Context) {
 
     private companion object {
         val THEME = stringPreferencesKey("theme")
+        val COLOR_STYLE = stringPreferencesKey("color_style")
         val INTERVAL = longPreferencesKey("sampling_interval_ms")
         val STORAGE = booleanPreferencesKey("include_storage")
         val ADVANCED = booleanPreferencesKey("advanced_metrics")

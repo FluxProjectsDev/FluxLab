@@ -20,14 +20,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,25 +36,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-
-private val Gold = Color(0xFFE0B85B)
-private val DarkColors = darkColorScheme(
-    primary = Gold,
-    onPrimary = Color(0xFF332A12),
-    secondary = Color(0xFFC9B98D),
-    background = Color(0xFF0E0D0A),
-    surface = Color(0xFF17140E),
-    surfaceVariant = Color(0xFF242016),
-    onBackground = Color(0xFFF1EBDD),
-    onSurface = Color(0xFFF1EBDD),
-)
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF705B14),
-    secondary = Color(0xFF6A5E3D),
-    background = Color(0xFFFFF9EE),
-    surface = Color(0xFFFFF9EE),
-    surfaceVariant = Color(0xFFF2E9D2),
-)
 
 private data class Destination(val route: String, val label: Int, val icon: ImageVector)
 
@@ -82,10 +60,10 @@ fun FluxLabRoot() {
         ThemeSetting.DARK -> true
     }
     val context = LocalContext.current
-    val colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    val colors = if (settings.colorStyle == ColorStyle.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else if (dark) DarkColors else LightColors
-    MaterialTheme(colorScheme = colors) {
+    } else if (dark) FluxDarkColorScheme else FluxLightColorScheme
+    MaterialTheme(colorScheme = colors, typography = FluxTypography.material, shapes = FluxShapes.material) {
         FluxLabNavigation(model)
     }
 }
