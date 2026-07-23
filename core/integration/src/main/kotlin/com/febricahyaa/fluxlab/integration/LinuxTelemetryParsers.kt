@@ -102,9 +102,10 @@ data class PsiValues(
     val someAvg300: Double? = null,
     val fullAvg60: Double? = null,
     val fullAvg300: Double? = null,
+) {
     val hasAnyAverage: Boolean
         get() = listOf(someAvg10, fullAvg10, someAvg60, someAvg300, fullAvg60, fullAvg300).any { it != null }
-)
+}
 
 object PsiParser {
     fun parse(text: String): PsiValues {
