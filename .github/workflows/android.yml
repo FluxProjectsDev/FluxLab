@@ -1,0 +1,98 @@
+name: Android validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      recover_gradle_cache:
+        description: Discard Gradle transforms and resolve Android build tools from scratch
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  wrapper-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: gradle/actions/wrapper-validation@v6
+
+  build-test-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+          cache-disabled: ${{ github.event_name == 'workflow_dispatch' && inputs.recover_gradle_cache }}
+      - name: Install Android components
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Stop Gradle and discard stale Android transforms
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.recover_gradle_cache }}
+        shell: bash
+        run: |
+          ./gradlew --stop || true
+          find "$GRADLE_USER_HOME/caches" -maxdepth 3 -type d -name 'transforms*' -prune -exec rm -rf '{}' +
+          rm -rf "$GRADLE_USER_HOME/caches/modules-2/files-2.1/com.android.tools.build/aapt2"
+      - name: Validate dependency configuration
+        run: ./gradlew --no-daemon --stacktrace :app:dependencies --configuration debugRuntimeClasspath
+      - name: Assemble debug APK with clean dependency resolution
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.recover_gradle_cache }}
+        run: ./gradlew --no-daemon --stacktrace --refresh-dependencies assembleDebug
+      - name: Assemble debug APK
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.recover_gradle_cache }}
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
+      - name: Run unit tests
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
+      - name: Run Android lint
+        run: ./gradlew --no-daemon --stacktrace lintDebug
+      - name: Compile AndroidTest APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebugAndroidTest
+      - name: Calculate debug APK SHA-256
+        if: success()
+        shell: bash
+        run: |
+          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app-debug.apk.sha256
+          {
+            echo "### Debug APK SHA-256"
+            echo '```'
+            cat app-debug.apk.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload FluxLab debug APK
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fluxlab-debug-apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app-debug.apk.sha256
+          if-no-files-found: error
+      - name: Upload AndroidTest APK
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fluxlab-debug-androidTest-apk
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: error
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fluxlab-validation-reports
+          path: |
+            **/build/reports/tests/**
+            **/build/reports/lint-results-*.html
+            **/build/reports/lint-results-*.xml
+            **/build/test-results/**
+          if-no-files-found: warn

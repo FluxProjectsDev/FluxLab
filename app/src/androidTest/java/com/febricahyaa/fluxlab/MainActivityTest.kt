@@ -1,0 +1,33 @@
+package com.febricahyaa.fluxlab
+
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.lifecycle.Lifecycle
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class MainActivityTest {
+    @get:Rule
+    val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun activityStartsOnOverviewAndRemainsResumed() {
+        composeRule.onNodeWithText("FluxLab").assertIsDisplayed()
+        composeRule.onAllNodesWithText("FluxLab").assertCountEquals(1)
+        composeRule.onNodeWithText("Overview").assertIsDisplayed()
+        composeRule.activityRule.scenario.onActivity { activity ->
+            assertFalse(activity.isFinishing)
+            assertFalse(activity.isDestroyed)
+            assertTrue(activity.window.decorView.isAttachedToWindow)
+            assertTrue(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        }
+    }
+}
