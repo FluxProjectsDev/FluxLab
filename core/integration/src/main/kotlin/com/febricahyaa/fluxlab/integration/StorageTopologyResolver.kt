@@ -7,6 +7,7 @@ data class BlockTopologyNode(
     val holders: List<String> = emptyList(),
     val subsystem: String? = null,
     val devicePath: String? = null,
+    val parents: List<String> = emptyList(),
 )
 
 data class ResolvedBlockTopology(
@@ -33,12 +34,15 @@ object StorageTopologyResolver {
             } else {
                 diagnostics += name + " slaves=" + node.slaves.joinToString(",").ifBlank { "none" }
                 diagnostics += name + " holders=" + node.holders.joinToString(",").ifBlank { "none" }
-                node.slaves.forEach(::visit)
+                diagnostics += name + " parents=" + node.parents.joinToString(",").ifBlank { "none" }
+                (node.slaves + node.parents).forEach(::visit)
             }
             visiting.remove(name)
         }
         visit(start)
-        val physical = chain.asReversed().firstOrNull { nodes[it]?.slaves.orEmpty().isEmpty() }
+        val physical = chain.asReversed().firstOrNull {
+            nodes[it]?.slaves.orEmpty().isEmpty() && nodes[it]?.parents.orEmpty().isEmpty()
+        }
         return ResolvedBlockTopology(start, physical, chain.distinct(), diagnostics.distinct())
     }
 }

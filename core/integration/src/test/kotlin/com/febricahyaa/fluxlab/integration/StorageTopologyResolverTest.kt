@@ -30,4 +30,18 @@ class StorageTopologyResolverTest {
         assertEquals(null, result.physicalDevice)
         assertTrue(result.diagnostics.any { it.contains("Cycle prevented") })
     }
+
+    @Test
+    fun resolvesPartitionParentAlongsideDeviceMapperSlave() {
+        val result = StorageTopologyResolver.resolve(
+            "dm-0",
+            mapOf(
+                "dm-0" to BlockTopologyNode("dm-0", slaves = listOf("sda1")),
+                "sda1" to BlockTopologyNode("sda1", parents = listOf("sda")),
+                "sda" to BlockTopologyNode("sda"),
+            ),
+        )
+        assertEquals("sda", result.physicalDevice)
+        assertTrue(result.diagnostics.any { it.contains("parents=sda") })
+    }
 }

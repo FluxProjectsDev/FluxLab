@@ -16,6 +16,32 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+data class ParsedMountInfo(
+    val majorMinor: String?,
+    val mountPoint: String,
+    val filesystem: String,
+    val source: String,
+)
+
+object MountInfoParser {
+    fun parse(text: String): List<ParsedMountInfo> = text.lineSequence().mapNotNull { line ->
+        val separator = line.indexOf(" - ")
+        if (separator <= 0) return@mapNotNull null
+        val left = line.substring(0, separator).trim().split(Regex("\\s+"))
+        val right = line.substring(separator + 3).trim().split(Regex("\\s+"))
+        if (left.size < 6 || right.size < 2) return@mapNotNull null
+        ParsedMountInfo(
+            majorMinor = left[2].takeIf { ':' in it },
+            mountPoint = unescape(left[4]),
+            filesystem = right[0],
+            source = unescape(right[1]),
+        )
+    }.toList()
+
+    private fun unescape(value: String): String =
+        value.replace("\\040", " ").replace("\\011", "\t").replace("\\\\", "\\")
+}
+
 /** Resolves the app-private mount through device-mapper and physical block topology. */
 class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider {
     private val appContext = context.applicationContext
@@ -25,7 +51,9 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
         val mount = mounts
             .filter { appContext.filesDir.absolutePath == it.mountPoint || appContext.filesDir.absolutePath.startsWith(it.mountPoint + "/") }
             .maxByOrNull { it.mountPoint.length }
-        val logicalName = mount?.blockDevice?.let(::resolveBlockName)
+        val logicalName = mount?.let {
+            it.majorMinor?.let(::resolveBlockNameFromMajorMinor) ?: it.blockDevice.let(::resolveBlockName)
+        }
         if (logicalName == null) {
             return@withContext StorageTelemetry(
                 identity = StorageIdentity(
@@ -49,19 +77,25 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
         val vendor = readFirst(devicePath, listOf("vendor", "manufacturer"))
         val revision = readFirst(devicePath, listOf("rev", "revision"))
         val evidence = topologyEvidence(physicalPath, devicePath)
-        val type = StorageParsers.detectType(physicalName, model, evidence.joinToString(" "))
+        val type = StorageParsers.detectType(physicalName, evidence.filterNot { it == model }.joinToString(" "))
         val logicalBlockSize = readLong(File(physicalPath, "queue/logical_block_size"))
         val physicalBlockSize = readLong(File(physicalPath, "queue/physical_block_size"))
         val sectorCount = readLong(File(physicalPath, "size"))
-        val total = sectorCount?.let { count -> runCatching { Math.multiplyExact(count, 512L) }.getOrNull() }
         val stat = runCatching { StatFs(mount.mountPoint) }.getOrNull()
+        val filesystemTotal = stat?.let { runCatching { Math.multiplyExact(it.blockCountLong, it.blockSizeLong) }.getOrNull() }
         val available = stat?.let { runCatching { Math.multiplyExact(it.availableBlocksLong, it.blockSizeLong) }.getOrNull() }
-        val transportEvidence = evidence.filter { it.contains("ufs", true) || it.contains("mmc", true) || it.contains("ufshcd", true) }
+        val physicalTotal = resolved.physicalDevice?.let { sectorCount }?.let { count ->
+            runCatching { Math.multiplyExact(count, 512L) }.getOrNull()
+        }
+        val transportEvidence = evidence.filterNot { it == model }
+            .filter { it.contains("ufs", true) || it.contains("mmc", true) || it.contains("ufshcd", true) }
         val warnings = buildList {
             if (model == null) add("Storage model is not exposed")
             if (type == StorageType.UNKNOWN) add("Transport could not be verified from sysfs evidence")
             if (resolved.physicalDevice == null) add("No physical backing block device was resolved")
             if (type == StorageType.VIRTUAL) add("Virtual storage does not expose physical lifetime descriptors")
+            if (filesystemTotal == null) add("Filesystem capacity is unavailable")
+            if (physicalTotal == null) add("Physical nominal capacity is unavailable")
         }
         val identity = StorageIdentity(
             storageType = type,
@@ -76,8 +110,11 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
             transportConfidence = StorageParsers.transportConfidence(type, transportEvidence),
             logicalBlockSize = logicalBlockSize,
             physicalBlockSize = physicalBlockSize,
-            totalCapacityBytes = total,
+            totalCapacityBytes = filesystemTotal,
             availableCapacityBytes = available,
+            filesystemTotalCapacityBytes = filesystemTotal,
+            physicalNominalCapacityBytes = physicalTotal,
+            capacitySource = "StatFs(" + mount.mountPoint + ")",
             filesystem = mount.filesystem,
             mountPoint = mount.mountPoint,
             identitySource = "mount=$mountedSource; sysfs=${physicalPath.path}",
@@ -108,10 +145,18 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
             val holders = File(path, "holders").listFiles()?.map { it.name }.orEmpty()
             val subsystem = canonical(File(path, "subsystem"))
             val device = canonical(File(path, "device"))
-            nodes[name] = BlockTopologyNode(name, slaves, holders, subsystem, device)
-            slaves.forEach { if (it !in nodes) pending += it }
+            val parents = listOfNotNull(parentBlockDevice(name, path))
+            nodes[name] = BlockTopologyNode(name, slaves, holders, subsystem, device, parents)
+            (slaves + parents).forEach { if (it !in nodes) pending += it }
         }
         return nodes
+    }
+
+    private fun parentBlockDevice(name: String, path: File): String? {
+        val canonicalPath = canonical(path) ?: return null
+        val afterBlock = canonicalPath.substringAfter("/block/", "")
+        val parts = afterBlock.split('/')
+        return parts.getOrNull(0)?.takeIf { parts.size > 1 && parts[1] == name && it != name }
     }
 
     private fun topologyEvidence(block: File, device: File): List<String> = listOfNotNull(
@@ -176,10 +221,14 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
         }
     }
 
-    private fun readMounts(): List<MountInfo> = readText(File("/proc/mounts"))?.lineSequence()?.mapNotNull { line ->
-        val parts = line.split(Regex("\\s+"), limit = 6)
-        if (parts.size >= 3) MountInfo(unescape(parts[0]), unescape(parts[1]), parts[2]) else null
-    }?.toList().orEmpty()
+    private fun readMounts(): List<MountInfo> {
+        val mountInfo = readText(File("/proc/self/mountinfo"))?.let(MountInfoParser::parse).orEmpty()
+        if (mountInfo.isNotEmpty()) return mountInfo.map { MountInfo(it.source, it.mountPoint, it.filesystem, it.majorMinor) }
+        return readText(File("/proc/mounts"))?.lineSequence()?.mapNotNull { line ->
+            val parts = line.split(Regex("\\s+"), limit = 6)
+            if (parts.size >= 3) MountInfo(unescape(parts[0]), unescape(parts[1]), parts[2], null) else null
+        }?.toList().orEmpty()
+    }
 
     private fun resolveBlockName(source: String): String? {
         val names = listOfNotNull(
@@ -189,6 +238,9 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
         return names.firstOrNull { File("/sys/class/block/$it").exists() } ?: names.firstOrNull()
     }
 
+    private fun resolveBlockNameFromMajorMinor(majorMinor: String): String? =
+        canonical(File("/sys/dev/block/$majorMinor"))?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+
     private fun canonical(file: File): String? = runCatching { file.canonicalPath }.getOrNull()?.takeIf(String::isNotBlank)
     private fun readFirst(parent: File, names: List<String>): String? = names.firstNotNullOfOrNull { readText(File(parent, it)) }
     private fun readLong(file: File): Long? = readText(file)?.toLongOrNull()?.takeIf { it >= 0L }
@@ -197,16 +249,21 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
     }.getOrNull()
     private fun unescape(value: String): String = value.replace("\\040", " ").replace("\\011", "\t").replace("\\\\", "\\")
 
-    private data class MountInfo(val blockDevice: String, val mountPoint: String, val filesystem: String)
+    private data class MountInfo(
+        val blockDevice: String,
+        val mountPoint: String,
+        val filesystem: String,
+        val majorMinor: String?,
+    )
 }
 
 object StorageParsers {
-    fun detectType(blockName: String, model: String?, devicePath: String): StorageType {
-        val value = listOf(blockName, model.orEmpty(), devicePath).joinToString(" ").lowercase()
+    fun detectType(blockName: String, evidence: String): StorageType {
+        val value = listOf(blockName, evidence).joinToString(" ").lowercase()
         return when {
             "/virtual/" in value || "virtual" in value || blockName.startsWith("loop") -> StorageType.VIRTUAL
-            "ufshcd" in value || "ufs" in value -> StorageType.UFS
-            blockName.startsWith("mmcblk") || "/mmc/" in value || "mmc" in value || "emmc" in value -> StorageType.EMMC
+            "ufshcd" in value || "/ufs/" in value || "ufs/" in value -> StorageType.UFS
+            blockName.startsWith("mmcblk") || "/mmc/" in value || "mmc_host" in value || "ext_csd" in value -> StorageType.EMMC
             blockName.isBlank() -> StorageType.MALFORMED
             else -> StorageType.UNKNOWN
         }

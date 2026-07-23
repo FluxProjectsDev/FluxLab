@@ -70,9 +70,18 @@ class DiagnosticsProvidersTest {
     }
 
     @Test fun storageDetectionDoesNotUseMarketingNames() {
-        assertEquals(StorageType.EMMC, StorageParsers.detectType("mmcblk0", "vendor model", "/sys/block/mmcblk0/device"))
-        assertEquals(StorageType.UFS, StorageParsers.detectType("sda", "UFS device", "/sys/block/sda/device"))
-        assertEquals(StorageType.VIRTUAL, StorageParsers.detectType("loop0", null, "/sys/devices/virtual/block/loop0"))
+        assertEquals(StorageType.EMMC, StorageParsers.detectType("mmcblk0", "/sys/block/mmcblk0/device"))
+        assertEquals(StorageType.UNKNOWN, StorageParsers.detectType("sda", "vendor model UFS"))
+        assertEquals(StorageType.UFS, StorageParsers.detectType("sda", "/sys/devices/platform/ufshcd0/ufs"))
+        assertEquals(StorageType.VIRTUAL, StorageParsers.detectType("loop0", "/sys/devices/virtual/block/loop0"))
+    }
+
+    @Test
+    fun mountinfoParserPreservesMajorMinorAndFilesystemSource() {
+        val mounts = MountInfoParser.parse("36 25 253:1 / /data\\040user rw,relatime - f2fs /dev/block/dm-1 rw")
+        assertEquals("253:1", mounts.single().majorMinor)
+        assertEquals("/data user", mounts.single().mountPoint)
+        assertEquals("/dev/block/dm-1", mounts.single().source)
     }
     @Test fun cpuFrequencyUnitsAreNormalizedConservatively() {
         assertEquals(1_840_000_000L, CpuFrequencyParser.normalize("1840000", "scaling_cur_freq")!!.hz)
