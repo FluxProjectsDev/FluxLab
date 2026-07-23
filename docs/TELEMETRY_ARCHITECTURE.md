@@ -10,11 +10,14 @@ backing media.
 
 FluxLab’s telemetry path is a capability-driven, sampled pipeline:
 
-'AndroidDeviceTelemetrySource' runs reads on 'Dispatchers.IO', emits one
-'DeviceTelemetrySnapshot' per configured interval, and the existing
-'AppViewModel' retains bounded histories (at most 120 points). Compose animation
-interpolates only between stored points; it never reads procfs/sysfs on an animation
-frame.
+'AndroidTelemetryRepository' owns one sampler per application process. It retains
+the previous CPU/GPU counter snapshots and exposes a shared StateFlow to Overview,
+detail screens, and benchmark telemetry. 'AndroidDeviceTelemetrySource' performs
+reads on 'Dispatchers.IO'; the repository retains at most 120 snapshots. Starting
+the same interval is idempotent, and reset only occurs on explicit stop, source
+reset, counter reset, process recreation, or material provider configuration change.
+Compose animation interpolates only between stored points; it never reads
+procfs/sysfs on an animation frame.
 
 ## CPU
 
@@ -49,9 +52,12 @@ content.
 ## Memory, PSI, and ZRAM
 
 '/proc/meminfo' values are retained in KiB. Used memory is documented as
-'MemTotal - MemFree - Buffers - reclaimable cache'; reclaimable cache is
-'Cached + SReclaimable - Shmem', clamped at zero. Swap usage is
-'SwapTotal - SwapFree'.
+'MemTotal - MemAvailable' when 'MemAvailable' is present; a documented legacy
+fallback uses free, buffers, and reclaimable cache when it is absent. Reclaimable
+cache is 'Cached + SReclaimable - Shmem', clamped at zero. Active swap devices
+are parsed from '/proc/swaps'; aggregate fallback usage is 'SwapTotal - SwapFree'.
+Multiple '/sys/block/zram*' devices are summed and their per-device availability
+is retained through warnings and aggregate metadata.
 
 PSI is read from the file '/proc/pressure/memory' (without a trailing slash).
 The parser accepts independent 'some' and 'full' records and their avg10, avg60,
@@ -61,10 +67,12 @@ and compression ratio are only shown when exposed.
 
 ## Storage topology and health
 
-The relevant application-private mount is selected from '/proc/mounts', then its
-source is resolved through '/sys/class/block'. Device-mapper, mapper aliases,
-logical partitions, and slave chains are traversed with cycle prevention. Every
-resolution step is retained in technical diagnostics.
+The relevant application-private mount is selected from '/proc/self/mountinfo'
+with '/proc/mounts' fallback. Its major:minor source is resolved through
+'/sys/dev/block' and then '/sys/class/block'. Device-mapper, mapper aliases,
+logical partitions, parent relationships, and slave chains are traversed with
+cycle prevention. StatFs data-volume capacity is separate from physical nominal
+capacity, and every resolution step is retained in technical diagnostics.
 
 UFS requires UFS/ufshcd/controller evidence. eMMC requires an mmc/mmcblk or
 validated eMMC descriptor signal. Modern-device age or marketing names alone never

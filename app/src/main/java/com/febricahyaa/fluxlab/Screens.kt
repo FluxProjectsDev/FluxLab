@@ -1302,6 +1302,21 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
             thermalReadinessText(state.telemetry?.thermal?.eligibility ?: com.febricahyaa.fluxlab.model.ThermalEligibility.THERMAL_STATUS_UNAVAILABLE),
             Icons.Default.DeviceThermostat,
         )
+        MetricCard(
+            stringResource(R.string.gpu),
+            state.telemetry?.gpu?.utilizationPercent?.let { format(it, "%") }
+                ?: state.telemetry?.gpu?.currentFrequencyHz?.let { format(it / 1_000_000.0, "MHz") }
+                ?: stringResource(R.string.not_supported),
+            state.telemetry?.gpu?.utilizationPercent?.let { stringResource(R.string.live_sample) }
+                ?: stringResource(R.string.gpu_utilization_unavailable),
+            Icons.Default.GraphicEq,
+        )
+        MetricCard(
+            stringResource(R.string.memory),
+            state.telemetry?.memory?.usedKb?.let { formatKib(it) } ?: stringResource(R.string.not_supported),
+            state.telemetry?.battery?.calculatedPowerWatts?.let { format(it, "W") } ?: stringResource(R.string.power_unavailable),
+            Icons.Default.DataUsage,
+        )
         OutlinedButton(onClick = model::cancelQuickTest, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.cancel_test))
         }
@@ -1331,11 +1346,29 @@ private fun WorkloadVisual(
                 com.febricahyaa.fluxlab.model.WorkloadKind.STORAGE_WRITE -> 3
                 else -> 1
             }
-            repeat(lanes) { lane ->
-                val y = (lane + 1) * size.height / (lanes + 1)
-                drawLine(color, Offset(0f, y), Offset(size.width, y), strokeWidth = 4f)
-                val x = size.width * progress.coerceIn(0f, 1f)
-                drawCircle(color, 6f, Offset(x, y))
+            val bounded = progress.coerceIn(0f, 1f)
+            when (kind) {
+                com.febricahyaa.fluxlab.model.WorkloadKind.CPU_FLOATING_POINT -> {
+                    val points = (0..24).map { index ->
+                        val x = index / 24f * size.width
+                        val y = size.height / 2f + kotlin.math.sin(index / 24f * Math.PI * 4.0).toFloat() * size.height / 3f
+                        Offset(x, y)
+                    }
+                    points.zipWithNext().forEach { (from, to) -> drawLine(color, from, to, strokeWidth = 3f) }
+                    drawCircle(color, 6f, Offset(size.width * bounded, size.height / 2f))
+                }
+                com.febricahyaa.fluxlab.model.WorkloadKind.CPU_INTEGER,
+                com.febricahyaa.fluxlab.model.WorkloadKind.MEMORY_LATENCY,
+                com.febricahyaa.fluxlab.model.WorkloadKind.STORAGE_FSYNC -> {
+                    drawLine(color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), strokeWidth = 3f)
+                    drawCircle(color, 7f, Offset(size.width * bounded, size.height / 2f))
+                }
+                else -> repeat(lanes) { lane ->
+                    val y = (lane + 1) * size.height / (lanes + 1)
+                    drawLine(color, Offset(0f, y), Offset(size.width, y), strokeWidth = 4f)
+                    drawCircle(color, 6f, Offset(size.width * bounded, y))
+                }
+            }
             }
         }
     }

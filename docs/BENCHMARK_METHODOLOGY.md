@@ -75,5 +75,15 @@ Live telemetry is sampled on the configured interval from the existing IO-backed
 sparklines consume bounded histories of real samples and never perform filesystem reads during
 animation. A full benchmark visual mode is available for workload-specific feedback; reduced
 mode is the default and is persisted in session metadata because visuals can add observation
-overhead. Neither mode changes native measurements or pretends to provide progress that the
-engine has not reported.
+overhead. Full-mode visuals map CPU integer, CPU floating point, multithread,
+memory, storage, and fsync workloads to distinct lightweight forms. Their position
+is derived from actual engine progress; they do not advance independently and no
+GPU animation is shown without a GPU workload. Neither mode changes native
+measurements or pretends to provide progress that the engine has not reported.
+
+The active-run destination is driven by explicit preflight, countdown, warm-up,
+running, inter-workload cooldown, finalization, completed, cancelling, cancelled,
+and failed states. Cancellation stops new work, cooperatively cancels the active
+workload, removes recognized temporary benchmark files, and persists partial
+diagnostics as a cancelled session. Hosted CI remains authoritative for build and
+test results; garnet acceptance is a separate real-device check.
