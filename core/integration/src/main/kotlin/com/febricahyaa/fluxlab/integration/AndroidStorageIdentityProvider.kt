@@ -30,8 +30,8 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
             return@withContext StorageTelemetry(
                 identity = StorageIdentity(
                     storageType = StorageType.UNKNOWN,
-                    mountPoint = mount.mountPoint,
-                    filesystem = mount.filesystem,
+                    mountPoint = mount?.mountPoint,
+                    filesystem = mount?.filesystem,
                     identitySource = "/proc/mounts",
                     warnings = listOf("The application-private filesystem mount source could not be resolved"),
                 ),
@@ -41,6 +41,7 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
 
         val nodes = loadTopology(logicalName)
         val resolved = StorageTopologyResolver.resolve(logicalName, nodes)
+        val mountedSource = mount?.blockDevice ?: logicalName
         val physicalName = resolved.physicalDevice ?: logicalName
         val physicalPath = File("/sys/class/block/$physicalName")
         val devicePath = File(physicalPath, "device")
@@ -53,7 +54,7 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
         val physicalBlockSize = readLong(File(physicalPath, "queue/physical_block_size"))
         val sectorCount = readLong(File(physicalPath, "size"))
         val total = sectorCount?.let { count -> runCatching { Math.multiplyExact(count, 512L) }.getOrNull() }
-        val stat = mount.mountPoint?.let { runCatching { StatFs(it) }.getOrNull() }
+        val stat = mount?.mountPoint?.let { runCatching { StatFs(it) }.getOrNull() }
         val available = stat?.let { runCatching { Math.multiplyExact(it.availableBlocksLong, it.blockSizeLong) }.getOrNull() }
         val transportEvidence = evidence.filter { it.contains("ufs", true) || it.contains("mmc", true) || it.contains("ufshcd", true) }
         val warnings = buildList {
@@ -77,9 +78,9 @@ class AndroidStorageIdentityProvider(context: Context) : StorageIdentityProvider
             physicalBlockSize = physicalBlockSize,
             totalCapacityBytes = total,
             availableCapacityBytes = available,
-            filesystem = mount.filesystem,
-            mountPoint = mount.mountPoint,
-            identitySource = "mount=" + mount.blockDevice + "; sysfs=" + physicalPath.path,
+            filesystem = mount?.filesystem,
+            mountPoint = mount?.mountPoint,
+            identitySource = "mount=$mountedSource; sysfs=${physicalPath.path}",
             identityConfidence = when {
                 type == StorageType.UNKNOWN -> IdentityConfidence.LOW
                 model != null && transportEvidence.isNotEmpty() -> IdentityConfidence.HIGH

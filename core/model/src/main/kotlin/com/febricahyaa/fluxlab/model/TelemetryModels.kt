@@ -49,6 +49,20 @@ data class CpuTelemetry(
     val frequencyConfidence: IdentityConfidence = IdentityConfidence.UNAVAILABLE,
 )
 
+enum class MemoryPressure { NORMAL, ELEVATED, HIGH, UNAVAILABLE }
+
+object MemoryPressureClassifier {
+    fun classify(someAvg10: Double?, fullAvg10: Double?): MemoryPressure {
+        val pressure = listOfNotNull(someAvg10, fullAvg10).filter { it.isFinite() && it >= 0.0 }.maxOrNull()
+            ?: return MemoryPressure.UNAVAILABLE
+        return when {
+            pressure >= 10.0 -> MemoryPressure.HIGH
+            pressure >= 1.0 -> MemoryPressure.ELEVATED
+            else -> MemoryPressure.NORMAL
+        }
+    }
+}
+
 data class MemoryTelemetry(
     val totalKb: Long?,
     val availableKb: Long?,
@@ -69,6 +83,7 @@ data class MemoryTelemetry(
     val zramMemoryUsedBytes: Long? = null,
     val zramOriginalDataBytes: Long? = null,
     val zramCompressedDataBytes: Long? = null,
+    val pressure: MemoryPressure = MemoryPressure.UNAVAILABLE,
     val warnings: List<String> = emptyList(),
 )
 
@@ -144,6 +159,7 @@ data class GpuTelemetry(
     val maximumFrequencyHz: Long?,
     val frequencySource: String?,
     val driver: String? = null,
+    val driverPath: String? = null,
     val utilizationPercent: Double? = null,
     val identitySource: String? = null,
     val utilizationSource: String? = null,

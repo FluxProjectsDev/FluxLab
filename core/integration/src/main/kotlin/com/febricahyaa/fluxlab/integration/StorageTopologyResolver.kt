@@ -32,6 +32,7 @@ object StorageTopologyResolver {
                 diagnostics += "No sysfs node for " + name
             } else {
                 diagnostics += name + " slaves=" + node.slaves.joinToString(",").ifBlank { "none" }
+                diagnostics += name + " holders=" + node.holders.joinToString(",").ifBlank { "none" }
                 node.slaves.forEach(::visit)
             }
             visiting.remove(name)

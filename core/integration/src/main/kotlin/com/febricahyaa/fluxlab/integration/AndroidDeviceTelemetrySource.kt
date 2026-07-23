@@ -27,6 +27,8 @@ import com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot
 import com.febricahyaa.fluxlab.model.DeviceTelemetrySource
 import com.febricahyaa.fluxlab.model.GpuCapabilityProvider
 import com.febricahyaa.fluxlab.model.MemoryTelemetry
+import com.febricahyaa.fluxlab.model.MemoryPressure
+import com.febricahyaa.fluxlab.model.MemoryPressureClassifier
 import com.febricahyaa.fluxlab.model.RootGateway
 import com.febricahyaa.fluxlab.model.SystemTelemetry
 import com.febricahyaa.fluxlab.model.ThermalTelemetry
@@ -72,6 +74,7 @@ class AndroidDeviceTelemetrySource(
     }
 
     override fun stream(intervalMs: Long): Flow<DeviceTelemetrySnapshot> = flow {
+        previousCpu = emptyMap()
         val boundedInterval = intervalMs.coerceIn(250L, 10_000L)
         while (currentCoroutineContext().isActive) {
             emit(sample())
@@ -195,9 +198,10 @@ class AndroidDeviceTelemetrySource(
             zramMemoryUsedBytes = zram.memoryUsedBytes,
             zramOriginalDataBytes = zram.originalDataBytes,
             zramCompressedDataBytes = zram.compressedDataBytes,
+            pressure = psi?.takeIf { it.hasAnyAverage }?.let { MemoryPressureClassifier.classify(it.someAvg10, it.fullAvg10) } ?: MemoryPressure.UNAVAILABLE,
             warnings = buildList {
                 if (total == null) add("MemTotal is unavailable")
-                if (psi == null) add("Memory PSI is unavailable at /proc/pressure/memory")
+                if (psi == null || !psi.hasAnyAverage) add("Memory PSI is unavailable or malformed at /proc/pressure/memory")
                 if (zramDirectories.isEmpty()) add("ZRAM is not exposed by this device")
             },
         )
@@ -236,21 +240,29 @@ class AndroidDeviceTelemetrySource(
             else -> ChargingState.UNKNOWN
         }
         val reading = BatteryPowerNormalizer.read(current, BatteryCurrentUnit.MICROAMPERES, voltage, BatteryVoltageUnit.MILLIVOLTS, state)
-        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, reading.calculatedPowerWatts, reading.calculatedPowerWatts != null, currentRaw = current, currentUnitSource = reading.currentUnitSource, voltageRaw = voltage, voltageUnitSource = reading.voltageUnitSource, calculatedPowerWatts = reading.calculatedPowerWatts, chargingState = state, powerConfidence = reading.powerConfidence, powerWarnings = reading.powerWarnings, normalizedCurrentAmps = reading.normalizedCurrentAmps, normalizedVoltageVolts = reading.normalizedVoltageVolts, powerSource = reading.powerSource, averageCurrentMicroamps = averageCurrent, diagnostics = readBatteryDiagnostics(intent, counter))
+        return BatteryTelemetry(percent, charging, plugType, temperature, current, voltage, counter, reading.calculatedPowerWatts, reading.calculatedPowerWatts != null, currentRaw = current, currentUnitSource = reading.currentUnitSource, voltageRaw = voltage, voltageUnitSource = reading.voltageUnitSource, calculatedPowerWatts = reading.calculatedPowerWatts, chargingState = state, powerConfidence = reading.powerConfidence, powerWarnings = reading.powerWarnings, normalizedCurrentAmps = reading.normalizedCurrentAmps, normalizedVoltageVolts = reading.normalizedVoltageVolts, powerSource = reading.powerSource, averageCurrentMicroamps = averageCurrent, diagnostics = readBatteryDiagnostics(intent, counter, manager))
     }
 
-    private fun readBatteryDiagnostics(intent: Intent?, chargeCounterMicroAh: Long?): BatteryDiagnostics {
+    private fun readBatteryDiagnostics(intent: Intent?, chargeCounterMicroAh: Long?, manager: BatteryManager?): BatteryDiagnostics {
         val health = BatteryHealthParser.parse(intent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1))
         val batteryDir = File("/sys/class/power_supply").listFiles()?.firstOrNull { it.name.equals("battery", true) || it.name.startsWith("battery", true) }
         fun node(vararg names: String): Pair<Long, String>? = names.firstNotNullOfOrNull { name ->
             val file = batteryDir?.let { File(it, name) }
             file?.let { readLong(it.path)?.let { value -> value to it.path } }
         }
+        data class CapacityNode(val raw: Long, val unit: BatteryCapacityUnit, val source: String)
+        fun capacityNode(vararg candidates: Pair<String, BatteryCapacityUnit>): CapacityNode? =
+            candidates.firstNotNullOfOrNull { (name, unit) ->
+                batteryDir?.let { directory ->
+                    val file = File(directory, name)
+                    readLong(file.path)?.let { value -> CapacityNode(value, unit, file.path) }
+                }
+            }
         val currentCharge = BatteryCapacityNormalizer.reading(chargeCounterMicroAh, BatteryCapacityUnit.MICROAMP_HOURS, "BatteryManager charge counter")
-        val fullRaw = node("charge_full")
-        val designRaw = node("charge_full_design")
-        val full = BatteryCapacityNormalizer.reading(fullRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, fullRaw?.second)
-        val design = BatteryCapacityNormalizer.reading(designRaw?.first, BatteryCapacityUnit.MICROAMP_HOURS, designRaw?.second)
+        val fullRaw = capacityNode("charge_full" to BatteryCapacityUnit.MICROAMP_HOURS, "energy_full" to BatteryCapacityUnit.MICRO_WATT_HOURS)
+        val designRaw = capacityNode("charge_full_design" to BatteryCapacityUnit.MICROAMP_HOURS, "energy_full_design" to BatteryCapacityUnit.MICRO_WATT_HOURS)
+        val full = BatteryCapacityNormalizer.reading(fullRaw?.raw, fullRaw?.unit ?: BatteryCapacityUnit.UNKNOWN, fullRaw?.source)
+        val design = BatteryCapacityNormalizer.reading(designRaw?.raw, designRaw?.unit ?: BatteryCapacityUnit.UNKNOWN, designRaw?.source)
         val soh = BatteryHealthEstimator.estimate(full.normalizedMilliAmpHours, design.normalizedMilliAmpHours)
         val cycle = node("cycle_count", "battery_cycle")
         val maximumCurrent = node("constant_charge_current_max", "charge_control_max_current", "current_max")
@@ -262,6 +274,7 @@ class AndroidDeviceTelemetrySource(
             if (cycle != null && cycleCount == null) add("Battery cycle count is outside the validated range")
         }
         return BatteryDiagnostics(
+            chargeTimeRemainingMs = manager?.computeChargeTimeRemaining()?.takeIf { it >= 0L },
             status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)?.toString(),
             health = health,
             technology = intent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY),

@@ -1,5 +1,13 @@
 # Telemetry architecture
 
+Phase 3.1 corrections keep raw counter and source metadata separate from
+presentation. Linux guest and guest_nice fields are parsed for diagnostics but
+are not added a second time to the CPU total because Linux already accounts for
+them in user and nice time. PSI averages outside the validated 0–100 range are
+treated as malformed. Storage diagnostics retain both slave traversal and
+holder evidence, while only the slave chain is used to identify physical
+backing media.
+
 FluxLab’s telemetry path is a capability-driven, sampled pipeline:
 
 'AndroidDeviceTelemetrySource' runs reads on 'Dispatchers.IO', emits one

@@ -6,7 +6,9 @@ package com.febricahyaa.fluxlab.integration
  */
 data class CpuTimes(val fields: List<Long>) {
     private val normalized: List<Long> get() = (fields.take(10) + List((10 - fields.size).coerceAtLeast(0)) { 0L })
-    val total: Long get() = normalized.fold(0L) { sum, value -> sum + value }
+    /** Linux exposes guest time as a component of user/nice time. Do not add it again. */
+    val nonIdle: Long get() = normalized[0] + normalized[1] + normalized[2] + normalized[5] + normalized[6] + normalized[7]
+    val total: Long get() = idle + nonIdle
     val idle: Long get() = normalized[3] + normalized[4]
 }
 
@@ -57,7 +59,9 @@ object ProcStatParser {
         (fields.take(10) + List((10 - fields.size).coerceAtLeast(0)) { 0L })
 
     private fun CpuTimes.safeTotal(): Long? = runCatching {
-        normalizedFields().fold(0L) { sum, value -> Math.addExact(sum, value) }
+        Math.addExact(safeIdle() ?: 0L, normalizedFields().let { values ->
+            values[0] + values[1] + values[2] + values[5] + values[6] + values[7]
+        })
     }.getOrNull()
 
     private fun CpuTimes.safeIdle(): Long? = runCatching {
@@ -98,16 +102,23 @@ data class PsiValues(
     val someAvg300: Double? = null,
     val fullAvg60: Double? = null,
     val fullAvg300: Double? = null,
+    val hasAnyAverage: Boolean
+        get() = listOf(someAvg10, fullAvg10, someAvg60, someAvg300, fullAvg60, fullAvg300).any { it != null }
 )
 
 object PsiParser {
     fun parse(text: String): PsiValues {
         fun averages(prefix: String): List<Double?> {
-            val line = text.lineSequence().firstOrNull { it.trimStart().startsWith(prefix) }
-                ?: return listOf(null, null, null)
-            val values = line.trim().split(Regex("\\s+")).drop(1).associate {
-                it.substringBefore('=') to it.substringAfter('=', "").toDoubleOrNull()
+            val line = text.lineSequence().firstOrNull {
+                it.trim().substringBefore(' ') == prefix
             }
+                ?: return listOf(null, null, null)
+            val values = line.trim().split(Regex("\\s+")).drop(1).mapNotNull { field ->
+                val key = field.substringBefore('=')
+                val value = field.substringAfter('=', "").toDoubleOrNull()
+                    ?.takeIf { it.isFinite() && it in 0.0..100.0 }
+                value?.let { key to it }
+            }.toMap()
             return listOf(values["avg10"], values["avg60"], values["avg300"])
         }
         val some = averages("some")
