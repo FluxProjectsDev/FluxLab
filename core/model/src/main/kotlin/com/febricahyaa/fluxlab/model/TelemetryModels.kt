@@ -74,6 +74,14 @@ object MemoryPressureClassifier {
     }
 }
 
+data class SwapDeviceTelemetry(
+    val name: String,
+    val type: String?,
+    val totalKb: Long,
+    val usedKb: Long,
+    val priority: Int?,
+)
+
 data class MemoryTelemetry(
     val totalKb: Long?,
     val availableKb: Long?,
@@ -95,6 +103,9 @@ data class MemoryTelemetry(
     val zramOriginalDataBytes: Long? = null,
     val zramCompressedDataBytes: Long? = null,
     val pressure: MemoryPressure = MemoryPressure.UNAVAILABLE,
+    val swapDevices: List<SwapDeviceTelemetry> = emptyList(),
+    val zramDeviceCount: Int = 0,
+    val zramCompressionRatio: Double? = null,
     val warnings: List<String> = emptyList(),
 )
 

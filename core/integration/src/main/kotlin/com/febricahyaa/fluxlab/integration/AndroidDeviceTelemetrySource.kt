@@ -189,8 +189,10 @@ class AndroidDeviceTelemetrySource(
         val cached = MemInfoParser.cachedKb(info)
         val buffers = info["Buffers"]
         val shmem = info["Shmem"]
-        val swapTotal = info["SwapTotal"]
-        val swapFree = info["SwapFree"]
+        val swapDevices = readText("/proc/swaps")?.let(SwapParser::parse).orEmpty()
+        val swapTotal = swapDevices.takeIf { it.isNotEmpty() }?.sumOf { it.totalKb } ?: info["SwapTotal"]
+        val swapUsed = swapDevices.takeIf { it.isNotEmpty() }?.sumOf { it.usedKb }
+            ?: info["SwapTotal"]?.let { total -> info["SwapFree"]?.let { free -> (total - free).coerceAtLeast(0L) } }
         val psi = readText("/proc/pressure/memory")?.let(PsiParser::parse)
         val major = readText("/proc/vmstat")?.lineSequence()?.firstOrNull { it.startsWith("pgmajfault ") }
             ?.substringAfter(' ')?.trim()?.toLongOrNull()
@@ -203,13 +205,14 @@ class AndroidDeviceTelemetrySource(
             }
         }.groupBy({ it.first }, { it.second }).mapValues { (_, values) -> values.sum() }
         val zram = ZramParser.parse(zramValues)
+        val zramMetadataAvailable = zram.diskSizeBytes != null || zram.memoryUsedBytes != null
         return MemoryTelemetry(
             totalKb = total,
             availableKb = available,
             usedKb = MemInfoParser.usedKb(info),
             cachedKb = cached,
             swapTotalKb = swapTotal,
-            swapUsedKb = if (swapTotal != null && swapFree != null) (swapTotal - swapFree).coerceAtLeast(0L) else null,
+            swapUsedKb = swapUsed,
             zramBytes = zram.diskSizeBytes,
             psiSomeAvg10 = psi?.someAvg10,
             psiFullAvg10 = psi?.fullAvg10,
@@ -224,10 +227,14 @@ class AndroidDeviceTelemetrySource(
             zramOriginalDataBytes = zram.originalDataBytes,
             zramCompressedDataBytes = zram.compressedDataBytes,
             pressure = psi?.takeIf { it.hasAnyAverage }?.let { MemoryPressureClassifier.classify(it.someAvg10, it.fullAvg10) } ?: MemoryPressure.UNAVAILABLE,
+            swapDevices = swapDevices,
+            zramDeviceCount = zramDirectories.size,
+            zramCompressionRatio = zram.compressionRatio,
             warnings = buildList {
                 if (total == null) add("MemTotal is unavailable")
                 if (psi == null || !psi.hasAnyAverage) add("Memory PSI is unavailable or malformed at /proc/pressure/memory")
-                if (zramDirectories.isEmpty()) add("ZRAM is not exposed by this device")
+                if (zramDirectories.isEmpty() && swapDevices.isNotEmpty()) add("Swap is active; ZRAM metadata is unavailable")
+                if (zramDirectories.isNotEmpty() && !zramMetadataAvailable) add("ZRAM devices are present but metadata is unavailable")
             },
         )
     }

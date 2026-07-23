@@ -109,9 +109,12 @@ object MemInfoParser {
         return (cached - shmem).coerceAtLeast(0L).takeIf { cached > 0L }
     }
 
-    /** Used memory excludes MemAvailable, buffers, and reclaimable cache. */
+    /** Used memory follows the kernel's MemAvailable estimate when exposed. */
     fun usedKb(values: Map<String, Long>): Long? {
         val total = values["MemTotal"] ?: return null
+        values["MemAvailable"]?.let { available ->
+            return (total - available).coerceAtLeast(0L).takeIf { available <= total }
+        }
         val free = values["MemFree"] ?: return null
         val buffers = values["Buffers"] ?: 0L
         val cache = cachedKb(values) ?: 0L
@@ -119,6 +122,18 @@ object MemInfoParser {
     }
 }
 
+object SwapParser {
+    fun parse(text: String): List<com.febricahyaa.fluxlab.model.SwapDeviceTelemetry> =
+        text.lineSequence()
+            .dropWhile { it.trim().startsWith("Filename") || it.isBlank() }
+            .mapNotNull { line ->
+                val fields = line.trim().split(Regex("\\s+"))
+                if (fields.size < 4) return@mapNotNull null
+                val total = fields[2].toLongOrNull()?.takeIf { it >= 0L } ?: return@mapNotNull null
+                val used = fields[3].toLongOrNull()?.takeIf { it >= 0L && it <= total } ?: return@mapNotNull null
+                val priority = fields.getOrNull(4)?.toIntOrNull()
+                com.febricahyaa.fluxlab.model.SwapDeviceTelemetry(fields[0], fields[1], total, used, priority)
+            }
 data class PsiValues(
     val someAvg10: Double?,
     val fullAvg10: Double?,

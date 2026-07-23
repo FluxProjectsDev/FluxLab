@@ -110,4 +110,19 @@ class LinuxTelemetryParsersTest {
         assertTrue(CpuPolicyParser.parseCpuList("malformed").isEmpty())
     }
 
+    @Test
+    fun memoryUsedPrefersKernelAvailableEstimate() {
+        val values = MemInfoParser.parse("MemTotal: 8000000 kB\nMemAvailable: 2500000 kB\nMemFree: 1000000 kB\n")
+        assertEquals(5_500_000L, MemInfoParser.usedKb(values))
+    }
+
+    @Test
+    fun swapParserKeepsMultipleDevicesAndRejectsImpossibleUsage() {
+        val values = SwapParser.parse(
+            "Filename\tType\tSize\tUsed\tPriority\n/dev/zram0\tpartition\t2048\t512\t-2\n/dev/block/dm-1\tpartition\t4096\t8192\t-3\n",
+        )
+        assertEquals(1, values.size)
+        assertEquals("/dev/zram0", values.single().name)
+        assertEquals(512L, values.single().usedKb)
+    }
 }
