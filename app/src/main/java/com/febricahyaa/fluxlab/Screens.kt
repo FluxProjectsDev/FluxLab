@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.febricahyaa.fluxlab.model.BenchmarkSession
 import com.febricahyaa.fluxlab.model.BenchmarkPreset
+import com.febricahyaa.fluxlab.model.MemoryPressure
 import com.febricahyaa.fluxlab.model.GpuCapabilityState
 import com.febricahyaa.fluxlab.model.localizedStatusKey
 import com.febricahyaa.fluxlab.model.LocalizedStatusKey
@@ -199,6 +201,7 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                     listOfNotNull(
                         telemetry.memory.zramBytes?.let { stringResource(R.string.zram_value, formatBytes(it)) },
                         telemetry.memory.psiSomeAvg10?.let { stringResource(R.string.psi_value, format(it, "%")) } ?: stringResource(R.string.psi_unavailable),
+                        telemetry.memory.pressure.takeIf { it != MemoryPressure.UNAVAILABLE }?.let { stringResource(R.string.psi_pressure, memoryPressureText(it)) },
                     ).joinToString(" • "),
                     Icons.Default.DataUsage,
                     onClick = { onNavigate("overview/memory") },
@@ -214,7 +217,7 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                 )
                 MetricCard(
                     stringResource(R.string.thermal),
-                    telemetry.thermal.primaryTemperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
+                    telemetry.thermal.hottestZone?.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
                     telemetry.thermal.hottestZone?.let { stringResource(R.string.hottest_sensor, it.name) }
                         ?: stringResource(R.string.thermal_status_unavailable),
                     Icons.Default.DeviceThermostat,
@@ -308,7 +311,7 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val readiness = model.readiness()
     val presetConfig = BenchmarkPresetConfig.forPreset(settings.preset)
     val active = progress.sessionId != null && progress.status in setOf(
-        SessionStatus.PREPARING, SessionStatus.WARMING_UP, SessionStatus.RUNNING, SessionStatus.COOLING_DOWN, SessionStatus.CANCELLED, SessionStatus.FAILED,
+        SessionStatus.PREPARING, SessionStatus.WARMING_UP, SessionStatus.RUNNING, SessionStatus.COOLING_DOWN,
     )
     Page(stringResource(R.string.tests), stringResource(R.string.preset_summary, presetLabel(settings.preset), pluralStringResource(R.plurals.repetitions, presetConfig.measuredRepetitionCount))) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -714,8 +717,8 @@ private fun themeName(value: ThemeSetting): String = stringResource(
 @Composable
 private fun languageName(value: LanguageSetting): String = when (value) {
     LanguageSetting.SYSTEM -> stringResource(R.string.theme_system)
-    LanguageSetting.ENGLISH -> "English"
-    LanguageSetting.INDONESIAN -> "Bahasa Indonesia"
+    LanguageSetting.ENGLISH -> stringResource(R.string.language_english)
+    LanguageSetting.INDONESIAN -> stringResource(R.string.language_indonesian)
 }
 
 
@@ -750,7 +753,15 @@ private fun storageTypeText(type: com.febricahyaa.fluxlab.model.StorageType): St
 private fun batteryPowerText(telemetry: com.febricahyaa.fluxlab.model.DeviceTelemetrySnapshot): String {
     val state = chargingStateText(telemetry.battery.chargingState)
     val power = telemetry.battery.calculatedPowerWatts?.let { format(it, "W") } ?: stringResource(R.string.power_unavailable)
-    return state + " • " + power
+    return buildList {
+        add(state + " • " + power)
+        telemetry.battery.diagnostics.capacity.currentCharge.normalizedMilliAmpHours?.let {
+            add(stringResource(R.string.current_charge_short, format(it, "mAh")))
+        }
+        telemetry.battery.diagnostics.capacity.estimatedSoHPercent?.let {
+            add(stringResource(R.string.estimated_health_short, format(it, "%")))
+        }
+    }.joinToString(" • ")
 }
 
 @Composable
@@ -775,6 +786,13 @@ private fun monitoringStateText(state: MonitoringState): String = when (state) {
     MonitoringState.FAILED -> stringResource(R.string.monitoring_failed)
 }
 
+@Composable
+private fun memoryPressureText(value: MemoryPressure): String = when (value) {
+    MemoryPressure.NORMAL -> stringResource(R.string.psi_pressure_normal)
+    MemoryPressure.ELEVATED -> stringResource(R.string.psi_pressure_elevated)
+    MemoryPressure.HIGH -> stringResource(R.string.psi_pressure_high)
+    MemoryPressure.UNAVAILABLE -> stringResource(R.string.psi_unavailable)
+}
 private fun usageText(value: Double): String = format(value, "%")
 
 @Composable
@@ -830,15 +848,18 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                     "%",
                 )
                 CpuHistoryChart(state.cpuHistory)
+                val aggregateFrequencies = state.telemetryHistory.mapNotNull { sample -> sample.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) }
                 DetailStats(
                     stringResource(R.string.aggregate_frequency),
-                    state.telemetryHistory.mapNotNull { sample -> sample.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) },
+                    aggregateFrequencies,
                     "GHz",
                 )
                 Sparkline(
                     state.telemetryHistory.map { it.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) },
                     Modifier.fillMaxWidth().height(100.dp),
                 )
+                Text(stringResource(R.string.minimum_frequency_value, it.cpu.cores.mapNotNull { core -> core.minimumFrequencyHz }.minOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
+                Text(stringResource(R.string.maximum_frequency_value, it.cpu.cores.mapNotNull { core -> core.maximumFrequencyHz }.maxOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.cpu_frequency_source, it.cpu.frequencySource ?: stringResource(R.string.not_supported)))
                 it.cpu.cores.forEach { core ->
                     val frequency = core.currentFrequencyHz?.let { value -> format(value / 1_000_000_000.0, "GHz") }
@@ -875,17 +896,27 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                         ?: (it.gpu.utilizationAvailabilityReason ?: gpuCapabilityText(it.gpu.capabilityState)),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                val utilizationHistory = state.gpuHistory.mapNotNull { it.second }
+                if (utilizationHistory.size >= 2) {
+                    DetailStats(stringResource(R.string.gpu_utilization_history), utilizationHistory, "%")
+                    Sparkline(state.gpuHistory.map { it.second }, Modifier.fillMaxWidth().height(100.dp))
+                }
+                Text(stringResource(R.string.minimum_frequency_value, it.gpu.minimumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
+                Text(stringResource(R.string.maximum_frequency_value, it.gpu.maximumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.gpu_driver_value, it.gpu.driver ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.gpu_frequency_source, it.gpu.frequencySource ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.gpu_utilization_source, it.gpu.utilizationSource ?: it.gpu.utilizationAvailabilityReason ?: stringResource(R.string.gpu_utilization_unavailable)))
                 it.gpu.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
                 Text(stringResource(R.string.technical_details), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.gpu_raw_model, it.gpu.model ?: stringResource(R.string.not_supported)))
+                it.gpu.driverPath?.let { path -> Text(stringResource(R.string.gpu_driver_path, path), style = MaterialTheme.typography.bodySmall) }
             } ?: LoadingDetail()
             MetricDetailKind.MEMORY -> telemetry?.let {
                 MetricCard(stringResource(R.string.memory), memoryValue(it.memory.usedKb, it.memory.totalKb),
                     stringResource(R.string.available_value, it.memory.availableKb?.let(::formatKib) ?: stringResource(R.string.not_supported)),
                     Icons.Default.DataUsage)
+                Text(stringResource(R.string.memory_total_value, it.memory.totalKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
+                Text(stringResource(R.string.memory_used_value, it.memory.usedKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 DetailStats(stringResource(R.string.memory_used), state.memoryHistory.mapNotNull { it.second }, "%")
                 Sparkline(state.memoryHistory.map { it.second }, Modifier.fillMaxWidth().height(100.dp))
                 Text(stringResource(R.string.memory_breakdown), style = MaterialTheme.typography.titleMedium)
@@ -894,10 +925,12 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                 Text(stringResource(R.string.swap_value, it.memory.swapUsedKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.zram_value, it.memory.zramBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
                 it.memory.zramOriginalDataBytes?.let { value -> Text(stringResource(R.string.zram_original, formatBytes(value))) }
+                it.memory.zramMemoryUsedBytes?.let { value -> Text(stringResource(R.string.zram_used, formatBytes(value))) }
                 it.memory.zramCompressedDataBytes?.let { value -> Text(stringResource(R.string.zram_compressed, formatBytes(value))) }
                 Text(stringResource(R.string.psi), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.psi_some_value, it.memory.psiSomeAvg10?.let { value -> format(value, "%") } ?: stringResource(R.string.psi_unavailable)))
                 Text(stringResource(R.string.psi_full_value, it.memory.psiFullAvg10?.let { value -> format(value, "%") } ?: stringResource(R.string.psi_unavailable)))
+                Text(stringResource(R.string.psi_pressure_value, memoryPressureText(it.memory.pressure)))
                 it.memory.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } ?: LoadingDetail()
             MetricDetailKind.THERMAL -> telemetry?.let {
@@ -1015,6 +1048,9 @@ fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
             Text(stringResource(R.string.battery_overview), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.charging_state_value, chargingStateText(battery.chargingState)))
             battery.plugType?.let { Text(stringResource(R.string.power_source_value, it)) }
+            battery.diagnostics.chargeTimeRemainingMs?.let { Text(stringResource(R.string.charge_time_value, it / 60_000L)) }
+            battery.diagnostics.maximumChargingCurrentMicroamps?.let { Text(stringResource(R.string.max_charge_current_value, format(it / 1_000.0, "mA"))) }
+            battery.diagnostics.maximumChargingVoltageMicrovolts?.let { Text(stringResource(R.string.max_charge_voltage_value, format(it / 1_000_000.0, "V"))) }
             battery.diagnostics.technology?.let { Text(stringResource(R.string.technology_value, it)) }
 
             val capacity = battery.diagnostics.capacity
@@ -1037,18 +1073,22 @@ fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
             Text(stringResource(R.string.temperature_value, battery.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported)))
 
             Text(stringResource(R.string.battery_history), style = MaterialTheme.typography.titleMedium)
+            val graphSamplesFor: (BatteryGraph) -> List<Double?> = { option ->
+                when (option) {
+                    BatteryGraph.POWER -> state.telemetryHistory.map { it.battery.calculatedPowerWatts }
+                    BatteryGraph.CURRENT -> state.telemetryHistory.map { it.battery.normalizedCurrentAmps?.times(1_000.0) }
+                    BatteryGraph.VOLTAGE -> state.telemetryHistory.map { it.battery.normalizedVoltageVolts }
+                    BatteryGraph.TEMPERATURE -> state.telemetryHistory.map { it.battery.temperatureCelsius }
+                }
+            }
             var graph by remember { mutableStateOf(BatteryGraph.POWER) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BatteryGraph.entries.forEach { option ->
-                    FilterChip(selected = graph == option, onClick = { graph = option }, label = { Text(batteryGraphLabel(option)) })
+                    val available = graphSamplesFor(option).count { it != null } >= 2
+                    FilterChip(selected = graph == option, enabled = available, onClick = { graph = option }, label = { Text(batteryGraphLabel(option)) })
                 }
             }
-            val graphSamples = when (graph) {
-                BatteryGraph.POWER -> state.telemetryHistory.map { it.battery.calculatedPowerWatts }
-                BatteryGraph.CURRENT -> state.telemetryHistory.map { it.battery.normalizedCurrentAmps?.times(1_000.0) }
-                BatteryGraph.VOLTAGE -> state.telemetryHistory.map { it.battery.normalizedVoltageVolts }
-                BatteryGraph.TEMPERATURE -> state.telemetryHistory.map { it.battery.temperatureCelsius }
-            }
+            val graphSamples = graphSamplesFor(graph)
             if (graphSamples.count { it != null } < 2) {
                 Text(stringResource(R.string.graph_unavailable_reason), color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
@@ -1056,6 +1096,8 @@ fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
                 DetailStats(batteryGraphLabel(graph), graphSamples.mapNotNull { it }, if (graph == BatteryGraph.CURRENT) "mA" else graph.unit)
             }
             Text(stringResource(R.string.battery_percentage_history), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.charging_state_timeline), style = MaterialTheme.typography.titleMedium)
+            BatteryStateTimeline(state.telemetryHistory.map { it.battery.chargingState })
             Sparkline(state.batteryHistory.map { it.second }, Modifier.fillMaxWidth().height(80.dp))
             battery.powerWarnings.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
             battery.diagnostics.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -1063,6 +1105,33 @@ fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
     }
 }
 
+@Composable
+private fun BatteryStateTimeline(states: List<com.febricahyaa.fluxlab.model.ChargingState>) {
+    val samples = states.takeLast(60)
+    if (samples.isEmpty()) {
+        Text(stringResource(R.string.graph_unavailable_reason), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    Canvas(
+        Modifier.fillMaxWidth().height(24.dp).semantics {
+            contentDescription = stringResource(R.string.charging_state_timeline)
+        },
+    ) {
+        val segmentWidth = size.width / samples.size
+        samples.forEachIndexed { index, state ->
+            drawRect(
+                color = when (state) {
+                    com.febricahyaa.fluxlab.model.ChargingState.CHARGING -> MaterialTheme.colorScheme.primary
+                    com.febricahyaa.fluxlab.model.ChargingState.FULL -> MaterialTheme.colorScheme.tertiary
+                    com.febricahyaa.fluxlab.model.ChargingState.DISCHARGING -> MaterialTheme.colorScheme.secondary
+                    else -> MaterialTheme.colorScheme.outlineVariant
+                },
+                topLeft = Offset(index * segmentWidth, 0f),
+                size = androidx.compose.ui.geometry.Size(segmentWidth - 1f, size.height),
+            )
+        }
+    }
+}
 private enum class BatteryGraph(val unit: String) { POWER("W"), CURRENT("mA"), VOLTAGE("V"), TEMPERATURE("°C") }
 
 @Composable
@@ -1106,6 +1175,9 @@ fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
             storage.identity.storageRevision?.let { Text(stringResource(R.string.revision_value, it)) }
             storage.identity.physicalBackingDevice?.let { Text(stringResource(R.string.physical_device_value, it)) }
             Text(stringResource(R.string.identity_confidence_value, confidenceText(storage.identity.identityConfidence)))
+            if (storage.identity.storageType == com.febricahyaa.fluxlab.model.StorageType.UNKNOWN) {
+                Text(stringResource(R.string.storage_unknown_reason), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text(stringResource(R.string.capacity), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.total_value, storage.identity.totalCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
             Text(stringResource(R.string.available_value, storage.identity.availableCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.not_supported)))
@@ -1179,7 +1251,7 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
     val state by model.dashboard.collectAsStateWithLifecycle()
     DetailPage(stringResource(R.string.active_benchmark), onBack) {
-        val fraction = if (progress.totalSteps > 0) progress.completedSteps.toFloat() / progress.totalSteps else 0f
+        val fraction = if (progress.totalSteps > 0) ((progress.completedSteps.toFloat() + progress.currentRepetition.toFloat() / progress.totalRepetitions.coerceAtLeast(1)) / progress.totalSteps) else 0f
         CircularProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.size(128.dp))
         Text(stageText(progress.stage), style = MaterialTheme.typography.headlineSmall)
         progress.workload?.let { Text(workloadText(it), style = MaterialTheme.typography.titleMedium) }
@@ -1189,7 +1261,7 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
         }
         progress.elapsedMs.takeIf { it > 0L }?.let { Text(stringResource(R.string.elapsed_value, it / 1_000L)) }
         progress.estimatedRemainingMs?.let { Text(stringResource(R.string.remaining_value, it / 1_000L)) }
-        progress.workload?.let { WorkloadVisual(it, progress.stage, progress.visualMode, fraction) }
+        progress.workload?.let { WorkloadVisual(it, progress.stage, progress.visualMode, fraction, progress.activeThreadCount) }
         MetricCard(
             stringResource(R.string.cpu),
             state.telemetry?.cpu?.totalUsagePercent?.let { format(it, "%") } ?: stringResource(R.string.not_supported),
@@ -1198,7 +1270,7 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
         )
         MetricCard(
             stringResource(R.string.thermal),
-            state.telemetry?.thermal?.primaryTemperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
+            state.telemetry?.thermal?.hottestZone?.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
             thermalReadinessText(state.telemetry?.thermal?.eligibility ?: com.febricahyaa.fluxlab.model.ThermalEligibility.THERMAL_STATUS_UNAVAILABLE),
             Icons.Default.DeviceThermostat,
         )
@@ -1214,6 +1286,7 @@ private fun WorkloadVisual(
     stage: BenchmarkStage,
     mode: com.febricahyaa.fluxlab.model.BenchmarkVisualMode,
     progress: Float,
+    activeThreadCount: Int?,
 ) {
     if (stage != BenchmarkStage.RUNNING || mode == com.febricahyaa.fluxlab.model.BenchmarkVisualMode.REDUCED) {
         Text(stringResource(R.string.reduced_visuals), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1223,7 +1296,7 @@ private fun WorkloadVisual(
     Card(Modifier.fillMaxWidth()) {
         Canvas(Modifier.fillMaxWidth().height(84.dp).padding(12.dp)) {
             val lanes = when (kind) {
-                com.febricahyaa.fluxlab.model.WorkloadKind.CPU_MULTI_THREADED -> 4
+                com.febricahyaa.fluxlab.model.WorkloadKind.CPU_MULTI_THREADED -> activeThreadCount?.coerceIn(2, 16) ?: 1
                 com.febricahyaa.fluxlab.model.WorkloadKind.MEMORY_COPY,
                 com.febricahyaa.fluxlab.model.WorkloadKind.MEMORY_FILL,
                 com.febricahyaa.fluxlab.model.WorkloadKind.STORAGE_READ,

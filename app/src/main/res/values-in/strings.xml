@@ -299,4 +299,26 @@
     <string name="no_storage_benchmark_results">Belum ada hasil tolok ukur penyimpanan.</string>
     <string name="storage_methodology">Metodologi</string>
     <string name="storage_methodology_summary">Kinerja penyimpanan diukur terpisah dari deskriptor kesehatan dan masa pakai.</string>
+    <string name="current_charge_short">Muatan %1$s</string>
+    <string name="estimated_health_short">Perkiraan kesehatan %1$s</string>
+    <string name="psi_pressure">PSI %1$s</string>
+    <string name="psi_pressure_normal">Normal</string>
+    <string name="psi_pressure_elevated">Meningkat</string>
+    <string name="psi_pressure_high">Tinggi</string>
+    <string name="psi_pressure_value">Tekanan: %1$s</string>
+    <string name="zram_used">ZRAM terpakai: %1$s</string>
+    <string name="gpu_driver_path">Jalur driver: %1$s</string>
+    <string name="charge_time_value">Perkiraan waktu pengisian: %1$d mnt</string>
+    <string name="max_charge_current_value">Arus pengisian maksimum: %1$s</string>
+    <string name="max_charge_voltage_value">Tegangan pengisian maksimum: %1$s</string>
+    <string name="minimum_frequency_value">Frekuensi minimum: %1$s</string>
+    <string name="maximum_frequency_value">Frekuensi maksimum: %1$s</string>
+    <string name="gpu_utilization_history">Riwayat utilisasi GPU</string>
+    <string name="memory_total_value">Total: %1$s</string>
+    <string name="memory_used_value">Terpakai: %1$s</string>
+    <string name="memory_available_value">Tersedia: %1$s</string>
+    <string name="storage_unknown_reason">Jenis penyimpanan tidak dapat diverifikasi dari mount dan topologi blok yang dapat diakses.</string>
+    <string name="charging_state_timeline">Linimasa status pengisian</string>
+    <string name="language_english">English</string>
+    <string name="language_indonesian">Bahasa Indonesia</string>
 </resources>

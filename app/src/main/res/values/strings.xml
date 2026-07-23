@@ -299,4 +299,26 @@
     <string name="no_storage_benchmark_results">No storage benchmark result is recorded.</string>
     <string name="storage_methodology">Methodology</string>
     <string name="storage_methodology_summary">Storage performance is measured separately from health and lifetime descriptors.</string>
+    <string name="current_charge_short">Charge %1$s</string>
+    <string name="estimated_health_short">Estimated health %1$s</string>
+    <string name="psi_pressure">PSI %1$s</string>
+    <string name="psi_pressure_normal">Normal</string>
+    <string name="psi_pressure_elevated">Elevated</string>
+    <string name="psi_pressure_high">High</string>
+    <string name="psi_pressure_value">Pressure: %1$s</string>
+    <string name="zram_used">ZRAM used: %1$s</string>
+    <string name="gpu_driver_path">Driver path: %1$s</string>
+    <string name="charge_time_value">Estimated charge time: %1$d min</string>
+    <string name="max_charge_current_value">Maximum charging current: %1$s</string>
+    <string name="max_charge_voltage_value">Maximum charging voltage: %1$s</string>
+    <string name="minimum_frequency_value">Minimum frequency: %1$s</string>
+    <string name="maximum_frequency_value">Maximum frequency: %1$s</string>
+    <string name="gpu_utilization_history">GPU utilization history</string>
+    <string name="memory_total_value">Total: %1$s</string>
+    <string name="memory_used_value">Used: %1$s</string>
+    <string name="memory_available_value">Available: %1$s</string>
+    <string name="storage_unknown_reason">Storage type could not be verified from the accessible mount and block topology.</string>
+    <string name="charging_state_timeline">Charging-state timeline</string>
+    <string name="language_english">English</string>
+    <string name="language_indonesian">Bahasa Indonesia</string>
 </resources>
