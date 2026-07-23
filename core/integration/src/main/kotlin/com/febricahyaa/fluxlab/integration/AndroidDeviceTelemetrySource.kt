@@ -74,12 +74,16 @@ class AndroidDeviceTelemetrySource(
     }
 
     override fun stream(intervalMs: Long): Flow<DeviceTelemetrySnapshot> = flow {
-        previousCpu = emptyMap()
         val boundedInterval = intervalMs.coerceIn(250L, 10_000L)
         while (currentCoroutineContext().isActive) {
             emit(sample())
             delay(boundedInterval)
         }
+    }
+
+    override fun reset() {
+        previousCpu = emptyMap()
+        gpuCapabilityProvider.reset()
     }
 
     private fun readCpu(identity: CpuIdentity): CpuTelemetry {

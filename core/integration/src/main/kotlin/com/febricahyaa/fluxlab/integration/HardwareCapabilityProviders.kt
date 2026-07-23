@@ -326,6 +326,10 @@ class AndroidGpuCapabilityProvider(
     private val platformHardware: String = Build.HARDWARE,
 ) : GpuCapabilityProvider {
     private var previousBusy: GpuBusyCounters? = null
+    override fun reset() {
+        previousBusy = null
+    }
+
 
     override suspend fun sample(): GpuTelemetry {
         val warnings = mutableListOf<String>()

@@ -1,6 +1,27 @@
 package com.febricahyaa.fluxlab.model
 
-enum class MonitoringState { INACTIVE, STARTING, COLLECTING_INITIAL_SAMPLES, ACTIVE, PAUSED, TEMPORARILY_UNAVAILABLE, UNSUPPORTED, PERMISSION_DENIED, FAILED }
+enum class MonitoringState {
+    INACTIVE,
+    STARTING,
+    COLLECTING_INITIAL_SAMPLES,
+    ACTIVE,
+    PAUSED,
+    TEMPORARILY_UNAVAILABLE,
+    PERMISSION_DENIED,
+    UNSUPPORTED,
+    MALFORMED,
+    STALE,
+    FAILED,
+}
+
+data class TelemetrySourceStatus(
+    val state: MonitoringState = MonitoringState.INACTIVE,
+    val reason: String? = null,
+    val source: String? = null,
+    val lastSuccessfulSampleElapsedMs: Long? = null,
+    val consecutiveFailureCount: Int = 0,
+    val warning: String? = null,
+)
 
 /** Fixed-size history used by charts; adding a sample never grows without bound. */
 class SampleRingBuffer<T>(private val capacity: Int = 120) {

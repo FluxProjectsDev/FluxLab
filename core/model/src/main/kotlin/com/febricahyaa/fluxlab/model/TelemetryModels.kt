@@ -1,6 +1,7 @@
 package com.febricahyaa.fluxlab.model
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 enum class CapabilityState { AVAILABLE, PARTIAL, UNAVAILABLE, PERMISSION_DENIED, MALFORMED, UNSUPPORTED }
 enum class IdentityConfidence { HIGH, MEDIUM, LOW, UNAVAILABLE }
@@ -170,6 +171,7 @@ data class GpuTelemetry(
 
 interface GpuCapabilityProvider {
     suspend fun sample(): GpuTelemetry
+    fun reset() {}
 }
 
 data class SystemTelemetry(
@@ -195,7 +197,22 @@ data class DeviceTelemetrySnapshot(
     val storage: StorageTelemetry = StorageTelemetry(),
 )
 
+data class TelemetryRepositoryState(
+    val latest: DeviceTelemetrySnapshot? = null,
+    val history: List<DeviceTelemetrySnapshot> = emptyList(),
+    val status: TelemetrySourceStatus = TelemetrySourceStatus(),
+    val successfulSampleCount: Long = 0L,
+)
+
+interface DeviceTelemetryRepository {
+    val state: StateFlow<TelemetryRepositoryState>
+    fun start(intervalMs: Long)
+    fun stop()
+    fun reset()
+}
+
 interface DeviceTelemetrySource {
     suspend fun sample(): DeviceTelemetrySnapshot
     fun stream(intervalMs: Long): Flow<DeviceTelemetrySnapshot>
+    fun reset() {}
 }

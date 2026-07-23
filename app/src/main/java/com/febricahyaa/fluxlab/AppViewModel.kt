@@ -26,6 +26,7 @@ import com.febricahyaa.fluxlab.model.SessionStatus
 import com.febricahyaa.fluxlab.model.SnapshotFreshness
 import com.febricahyaa.fluxlab.model.SynthesisReadResult
 import com.febricahyaa.fluxlab.model.MonitoringState
+import com.febricahyaa.fluxlab.model.TelemetrySourceStatus
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -33,8 +34,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -52,6 +54,7 @@ data class DashboardState(
     val batteryHistory: List<Pair<Long, Double?>> = emptyList(),
     val telemetryHistory: List<DeviceTelemetrySnapshot> = emptyList(),
     val monitoringState: MonitoringState = MonitoringState.INACTIVE,
+    val monitoringStatus: TelemetrySourceStatus = TelemetrySourceStatus(),
     val errorCode: String? = null,
 )
 
@@ -64,59 +67,52 @@ class AppViewModel(application: Application, private val container: AppContainer
     private val engine = QuickTestEngine(
         repository = container.repository,
         storage = container.storageSuite,
-        telemetryProvider = { mutableDashboard.value.telemetry },
+        telemetryProvider = { container.telemetryRepository.state.value.latest },
         monitoring = { active -> MonitoringService.setRunning(getApplication(), active) },
     )
     val benchmarkProgress: StateFlow<BenchmarkProgress> = engine.progress
     private var benchmarkJob: Job? = null
     private val mutableComparison = MutableStateFlow<SessionComparison?>(null)
     val comparison: StateFlow<SessionComparison?> = mutableComparison.asStateFlow()
+    private var monitoringEnabled = true
 
     init {
         viewModelScope.launch {
-            settings.collectLatest { current ->
-                mutableDashboard.value = mutableDashboard.value.copy(monitoringState = MonitoringState.STARTING)
-                container.telemetrySource.stream(current.samplingIntervalMs)
-                    .catch { error ->
-                        mutableDashboard.value = mutableDashboard.value.copy(
-                            monitoringState = MonitoringState.TEMPORARILY_UNAVAILABLE,
-                            errorCode = "telemetry:" + error.javaClass.simpleName,
-                        )
-                    }
-                    .collect { snapshot ->
-                        val timestamp = snapshot.elapsedRealtimeMs
-                        val history = (mutableDashboard.value.cpuHistory +
-                            (timestamp to snapshot.cpu.totalUsagePercent)).takeLast(120)
-                        val gpuHistory = (mutableDashboard.value.gpuHistory +
-                            (timestamp to snapshot.gpu.utilizationPercent)).takeLast(120)
-                        val memoryPercent = snapshot.memory.usedKb?.toDouble()?.let { used ->
-                            snapshot.memory.totalKb?.takeIf { it > 0L }?.let { total -> used / total * 100.0 }
-                        }
-                        val memoryHistory = (mutableDashboard.value.memoryHistory + (timestamp to memoryPercent)).takeLast(120)
-                        val thermalHistory = (mutableDashboard.value.thermalHistory +
-                            (timestamp to snapshot.thermal.hottestZone?.temperatureCelsius)).takeLast(120)
-                        val batteryHistory = (mutableDashboard.value.batteryHistory +
-                            (timestamp to snapshot.battery.levelPercent?.toDouble())).takeLast(120)
-                        val telemetryHistory = (mutableDashboard.value.telemetryHistory + snapshot).takeLast(120)
-                        val monitoringState = if (snapshot.cpu.totalUsagePercent == null) {
-                            MonitoringState.COLLECTING_INITIAL_SAMPLES
-                        } else {
-                            MonitoringState.ACTIVE
-                        }
-                        mutableDashboard.value = mutableDashboard.value.copy(
-                            telemetry = snapshot,
-                            frameTelemetry = container.frameTelemetry.snapshot(),
-                            cpuHistory = history,
-                            gpuHistory = gpuHistory,
-                            memoryHistory = memoryHistory,
-                            thermalHistory = thermalHistory,
-                            batteryHistory = batteryHistory,
-                            telemetryHistory = telemetryHistory,
-                            monitoringState = monitoringState,
-                        )
-                    }
+            settings.map { it.samplingIntervalMs }.distinctUntilChanged().collect { interval ->
+                if (monitoringEnabled) container.telemetryRepository.start(interval)
             }
         }
+        viewModelScope.launch {
+            container.telemetryRepository.state.collect { repositoryState ->
+                val history = repositoryState.history
+                val latest = repositoryState.latest
+                if (latest == null && repositoryState.status.state == MonitoringState.INACTIVE) return@collect
+                val cpuHistory = history.map { it.elapsedRealtimeMs to it.cpu.totalUsagePercent }
+                val gpuHistory = history.map { it.elapsedRealtimeMs to it.gpu.utilizationPercent }
+                val memoryHistory = history.map { snapshot ->
+                    val memory = snapshot.memory
+                    val used = memory.usedKb?.toDouble()
+                    val total = memory.totalKb?.takeIf { it > 0L }
+                    snapshot.elapsedRealtimeMs to used?.let { value -> total?.let { value / it * 100.0 } }
+                }
+                val thermalHistory = history.map { it.elapsedRealtimeMs to it.thermal.hottestZone?.temperatureCelsius }
+                val batteryHistory = history.map { it.elapsedRealtimeMs to it.battery.levelPercent?.toDouble() }
+                mutableDashboard.value = mutableDashboard.value.copy(
+                    telemetry = latest,
+                    frameTelemetry = container.frameTelemetry.snapshot(),
+                    cpuHistory = cpuHistory.takeLast(120),
+                    gpuHistory = gpuHistory.takeLast(120),
+                    memoryHistory = memoryHistory.takeLast(120),
+                    thermalHistory = thermalHistory.takeLast(120),
+                    batteryHistory = batteryHistory.takeLast(120),
+                    telemetryHistory = history,
+                    monitoringState = repositoryState.status.state,
+                    monitoringStatus = repositoryState.status,
+                    errorCode = repositoryState.status.reason,
+                )
+            }
+        }
+        container.telemetryRepository.start(settings.value.samplingIntervalMs)
         viewModelScope.launch {
             mutableDashboard.value = mutableDashboard.value.copy(root = RootState.Checking)
             val root = container.rootGateway.checkAvailability()
@@ -126,6 +122,11 @@ class AppViewModel(application: Application, private val container: AppContainer
                 delay(5_000)
             }
         }
+    }
+
+    override fun onCleared() {
+        container.telemetryRepository.stop()
+        super.onCleared()
     }
 
     fun readiness(): ReadinessResult {
@@ -178,12 +179,17 @@ class AppViewModel(application: Application, private val container: AppContainer
     }
 
     fun setLiveMonitoring(enabled: Boolean) {
-        mutableDashboard.value = mutableDashboard.value.copy(monitoringState = if (enabled) MonitoringState.STARTING else MonitoringState.PAUSED)
+        if (!enabled && engine.isRunning) return
+        monitoringEnabled = enabled
+        if (enabled) {
+            container.telemetryRepository.start(settings.value.samplingIntervalMs)
+        } else {
+            container.telemetryRepository.stop()
+        }
     }
 
     fun cancelQuickTest() {
         engine.cancel()
-        benchmarkJob?.cancel()
     }
 
     fun selectReportSession(id: String?) = viewModelScope.launch { container.settingsStore.setSelectedReportSessionId(id) }
