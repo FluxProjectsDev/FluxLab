@@ -161,9 +161,9 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                 }
             }
             state.flux.activeProfile?.let {
-                MetricCard(stringResource(R.string.active_profile), it, state.flux.versionName, Icons.Default.Tune) {
+                MetricCard(stringResource(R.string.active_profile), it, state.flux.versionName, Icons.Default.Tune, onClick = {
                     onNavigate("overview/profile")
-                }
+                })
             }
             if (telemetry == null) {
                 Card(Modifier.fillMaxWidth()) {
@@ -234,9 +234,9 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                 )
             }
             sessions.firstOrNull()?.let { session ->
-                MetricCard(stringResource(R.string.latest_session), sessionLabel(session), sessionStatusText(session.status), Icons.Default.Analytics) {
+                MetricCard(stringResource(R.string.latest_session), sessionLabel(session), sessionStatusText(session.status), Icons.Default.Analytics, onClick = {
                     onNavigate("overview/latest-session")
-                }
+                })
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(monitoringStateText(state.monitoringState), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1112,19 +1112,24 @@ private fun BatteryStateTimeline(states: List<com.febricahyaa.fluxlab.model.Char
         Text(stringResource(R.string.graph_unavailable_reason), color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
+    val timelineDescription = stringResource(R.string.charging_state_timeline)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(
         Modifier.fillMaxWidth().height(24.dp).semantics {
-            contentDescription = stringResource(R.string.charging_state_timeline)
+            contentDescription = timelineDescription
         },
     ) {
         val segmentWidth = size.width / samples.size
         samples.forEachIndexed { index, state ->
             drawRect(
                 color = when (state) {
-                    com.febricahyaa.fluxlab.model.ChargingState.CHARGING -> MaterialTheme.colorScheme.primary
-                    com.febricahyaa.fluxlab.model.ChargingState.FULL -> MaterialTheme.colorScheme.tertiary
-                    com.febricahyaa.fluxlab.model.ChargingState.DISCHARGING -> MaterialTheme.colorScheme.secondary
-                    else -> MaterialTheme.colorScheme.outlineVariant
+                    com.febricahyaa.fluxlab.model.ChargingState.CHARGING -> primaryColor
+                    com.febricahyaa.fluxlab.model.ChargingState.FULL -> tertiaryColor
+                    com.febricahyaa.fluxlab.model.ChargingState.DISCHARGING -> secondaryColor
+                    else -> outlineColor
                 },
                 topLeft = Offset(index * segmentWidth, 0f),
                 size = androidx.compose.ui.geometry.Size(segmentWidth - 1f, size.height),
@@ -1325,6 +1330,7 @@ fun SessionDetailScreen(model: AppViewModel, onBack: () -> Unit) {
 }
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun DetailPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
