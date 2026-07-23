@@ -17,7 +17,7 @@ class NavigationHierarchyTest {
         listOf(
             "overview/cpu", "overview/gpu", "overview/memory", "overview/storage",
             "overview/thermal", "overview/battery", "overview/profile", "overview/flux",
-            "overview/synthesiscore", "sessions/session-id", "benchmark/active",
+            "overview/synthesiscore", "overview/root", "sessions/session-id", "benchmark/active",
         ).forEach { route ->
             assertFalse(route, isTopLevelRoute(route))
         }
