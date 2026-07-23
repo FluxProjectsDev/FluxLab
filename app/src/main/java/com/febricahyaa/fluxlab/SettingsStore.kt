@@ -27,6 +27,11 @@ data class AppSettings(
     val advancedMetrics: Boolean = false,
     val units: UnitSetting = UnitSetting.IEC,
     val language: LanguageSetting = LanguageSetting.SYSTEM,
+    val autoStartMonitoring: Boolean = true,
+    val preserveLastSample: Boolean = true,
+    val stopMonitoringWhenIdle: Boolean = false,
+    val screenRecordingDeclared: Boolean = false,
+    val confirmReadinessWarnings: Boolean = true,
     val storageNoticeAccepted: Boolean = false,
     val selectedReportSessionId: String? = null,
     val preset: BenchmarkPreset = BenchmarkPreset.QUICK,
@@ -43,6 +48,11 @@ class SettingsStore(private val context: Context) {
             advancedMetrics = preferences[ADVANCED] ?: false,
             units = enumValue(preferences[UNITS], UnitSetting.IEC),
             language = enumValue(preferences[LANGUAGE], LanguageSetting.SYSTEM),
+            autoStartMonitoring = preferences[AUTO_START] ?: true,
+            preserveLastSample = preferences[PRESERVE_LAST_SAMPLE] ?: true,
+            stopMonitoringWhenIdle = preferences[STOP_WHEN_IDLE] ?: false,
+            screenRecordingDeclared = preferences[SCREEN_RECORDING] ?: false,
+            confirmReadinessWarnings = preferences[CONFIRM_WARNINGS] ?: true,
             storageNoticeAccepted = preferences[NOTICE] ?: false,
             selectedReportSessionId = preferences[SELECTED_REPORT_SESSION],
             preset = enumValue(preferences[PRESET], BenchmarkPreset.QUICK),
@@ -57,6 +67,11 @@ class SettingsStore(private val context: Context) {
     suspend fun setAdvanced(value: Boolean) = context.settingsDataStore.edit { it[ADVANCED] = value }
     suspend fun setUnits(value: UnitSetting) = context.settingsDataStore.edit { it[UNITS] = value.name }
     suspend fun setLanguage(value: LanguageSetting) = context.settingsDataStore.edit { it[LANGUAGE] = value.name }
+    suspend fun setAutoStartMonitoring(value: Boolean) = context.settingsDataStore.edit { it[AUTO_START] = value }
+    suspend fun setPreserveLastSample(value: Boolean) = context.settingsDataStore.edit { it[PRESERVE_LAST_SAMPLE] = value }
+    suspend fun setStopMonitoringWhenIdle(value: Boolean) = context.settingsDataStore.edit { it[STOP_WHEN_IDLE] = value }
+    suspend fun setScreenRecordingDeclared(value: Boolean) = context.settingsDataStore.edit { it[SCREEN_RECORDING] = value }
+    suspend fun setConfirmReadinessWarnings(value: Boolean) = context.settingsDataStore.edit { it[CONFIRM_WARNINGS] = value }
     suspend fun acceptStorageNotice() = context.settingsDataStore.edit { it[NOTICE] = true }
     suspend fun setSelectedReportSessionId(id: String?) = context.settingsDataStore.edit {
         if (id.isNullOrBlank()) it.remove(SELECTED_REPORT_SESSION) else it[SELECTED_REPORT_SESSION] = id
@@ -75,6 +90,11 @@ class SettingsStore(private val context: Context) {
         val ADVANCED = booleanPreferencesKey("advanced_metrics")
         val UNITS = stringPreferencesKey("units")
         val LANGUAGE = stringPreferencesKey("language")
+        val AUTO_START = booleanPreferencesKey("auto_start_monitoring")
+        val PRESERVE_LAST_SAMPLE = booleanPreferencesKey("preserve_last_sample")
+        val STOP_WHEN_IDLE = booleanPreferencesKey("stop_monitoring_when_idle")
+        val SCREEN_RECORDING = booleanPreferencesKey("screen_recording_declared")
+        val CONFIRM_WARNINGS = booleanPreferencesKey("confirm_readiness_warnings")
         val NOTICE = booleanPreferencesKey("storage_notice_accepted")
         val SELECTED_REPORT_SESSION = stringPreferencesKey("selected_report_session_id")
         val PRESET = stringPreferencesKey("benchmark_preset")

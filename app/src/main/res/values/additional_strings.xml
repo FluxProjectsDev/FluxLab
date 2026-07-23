@@ -2,4 +2,5 @@
 <resources>
     <string name="workload_list">Native integer, floating-point, multi-threaded CPU, memory copy, memory fill, pointer latency, and optional private-storage tests.</string>
     <string name="cpu_usage_chart">CPU usage history (%)</string>
+    <string name="cpu_chart_scale">0–100% • %1$d seconds</string>
 </resources>

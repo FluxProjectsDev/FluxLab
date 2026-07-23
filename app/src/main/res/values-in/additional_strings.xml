@@ -2,4 +2,5 @@
 <resources>
     <string name="workload_list">Tes native CPU integer, floating-point, multi-thread, salin memori, isi memori, latensi pointer, dan penyimpanan privat opsional.</string>
     <string name="cpu_usage_chart">Riwayat penggunaan CPU (%)</string>
+    <string name="cpu_chart_scale">0–100% • %1$d detik</string>
 </resources>

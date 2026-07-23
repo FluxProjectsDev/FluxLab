@@ -1,5 +1,6 @@
 package com.febricahyaa.fluxlab
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -470,10 +473,13 @@ private fun gpuCapabilityText(state: GpuCapabilityState): String = when (state) 
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val settings by model.settings.collectAsStateWithLifecycle()
+    val dashboard by model.dashboard.collectAsStateWithLifecycle()
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
     var notice by remember { mutableStateOf(false) }
+    var warningNotice by remember { mutableStateOf(false) }
     val readiness = model.readiness()
     val presetConfig = BenchmarkPresetConfig.forPreset(settings.preset)
     val active = progress.sessionId != null && progress.status in setOf(
@@ -482,9 +488,21 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     Page(stringResource(R.string.tests), stringResource(R.string.preset_summary, presetLabel(settings.preset), pluralStringResource(R.plurals.repetitions, presetConfig.measuredRepetitionCount))) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.benchmark_preset), style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BenchmarkPreset.entries.forEach { preset ->
-                    FilterChip(selected = settings.preset == preset, onClick = { model.setPreset(preset) }, label = { Text(presetLabel(preset)) })
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columns = if (maxWidth >= 720.dp) 3 else 2
+                FlowRow(maxItemsInEachRow = columns, horizontalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap), verticalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap)) {
+                    BenchmarkPreset.entries.forEach { preset ->
+                        val config = BenchmarkPresetConfig.forPreset(preset)
+                        MetricCard(
+                            presetLabel(preset),
+                            presetPurpose(preset),
+                            stringResource(R.string.preset_card_summary, durationText(config.maximumDurationMs), config.measuredRepetitionCount, 6 + if (settings.includeStorage) 3 else 0),
+                            Icons.Default.Science,
+                            modifier = Modifier.fillMaxWidth(1f / columns),
+                            onClick = { model.setPreset(preset) },
+                            metric = if (settings.preset == preset) FluxMetric.CPU else FluxMetric.UNAVAILABLE,
+                        )
+                    }
                 }
             }
             MetricCard(
@@ -495,7 +513,18 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                     is ReadinessResult.Blocked -> stringResource(R.string.blocked)
                 },
                 readiness.reasons.joinToString(" • ").takeIf(String::isNotBlank),
+                metric = when (readiness) {
+                    is ReadinessResult.Blocked -> FluxMetric.ERROR
+                    is ReadinessResult.ReadyWithWarnings -> FluxMetric.WARNING
+                    is ReadinessResult.Ready -> FluxMetric.SUCCESS
+                },
             )
+            Text(stringResource(R.string.system_status), style = MaterialTheme.typography.titleMedium)
+            MetricCard(stringResource(R.string.thermal), dashboard.telemetry?.thermal?.let { thermalReadinessText(it.eligibility) } ?: stringResource(R.string.checking), dashboard.telemetry?.thermal?.hottestZone?.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.thermal_status_unavailable), Icons.Default.DeviceThermostat, metric = FluxMetric.THERMAL)
+            MetricCard(stringResource(R.string.battery), dashboard.telemetry?.battery?.let { chargingStateText(it.chargingState) } ?: stringResource(R.string.checking), dashboard.telemetry?.battery?.levelPercent?.let { "$it%" } ?: stringResource(R.string.unknown), Icons.Default.BatteryChargingFull, metric = FluxMetric.BATTERY)
+            MetricCard(stringResource(R.string.storage), if (settings.includeStorage) stringResource(R.string.ready) else stringResource(R.string.not_supported), stringResource(R.string.storage_budget, formatBytes(presetConfig.storageAllocationLimitBytes)), Icons.Default.Storage, metric = FluxMetric.STORAGE)
+            Text(stringResource(R.string.visual_mode_value, stringResource(if (settings.visualMode == BenchmarkVisualMode.FULL) R.string.visual_full else R.string.visual_reduced)), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.screen_recording_notice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(stringResource(R.string.workloads), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.workload_list))
             if (settings.includeStorage) Text(stringResource(R.string.storage_budget, formatBytes(presetConfig.storageAllocationLimitBytes)), color = MaterialTheme.colorScheme.primary)
@@ -508,7 +537,11 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
             } else {
                 Button(
                     onClick = {
-                        if (settings.includeStorage && !settings.storageNoticeAccepted) notice = true else { model.startQuickTest(); onNavigate("benchmark/active") }
+                        when {
+                            settings.includeStorage && !settings.storageNoticeAccepted -> notice = true
+                            readiness is ReadinessResult.ReadyWithWarnings && settings.confirmReadinessWarnings -> warningNotice = true
+                            else -> { model.startQuickTest(); onNavigate("benchmark/active") }
+                        }
                     },
                     enabled = readiness !is ReadinessResult.Blocked,
                     modifier = Modifier.fillMaxWidth(),
@@ -527,6 +560,19 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                 }
             },
             dismissButton = { TextButton(onClick = { notice = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (warningNotice) {
+        AlertDialog(
+            onDismissRequest = { warningNotice = false },
+            title = { Text(stringResource(R.string.readiness_warning_title)) },
+            text = { Text(stringResource(R.string.readiness_warning_body, readiness.reasons.joinToString(" • "))) },
+            confirmButton = {
+                TextButton(onClick = { warningNotice = false; model.startQuickTest(); onNavigate("benchmark/active") }) {
+                    Text(stringResource(R.string.continue_action))
+                }
+            },
+            dismissButton = { TextButton(onClick = { warningNotice = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -562,7 +608,11 @@ private fun SessionCard(session: BenchmarkSession, model: AppViewModel, onNaviga
                 Text(sessionStatusText(session.status))
             }
             if (session.comparisonRole.name == "BASELINE") {
-                AssistChip(onClick = {}, label = { Text(stringResource(R.string.baseline)) })
+                Text(
+                    stringResource(R.string.baseline),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             session.workloadResults.firstOrNull()?.let { result ->
                 Text("${workloadText(result.kind)} — ${engineeringFormat(result.statistics.median, result.unit)}", style = MaterialTheme.typography.bodySmall)
@@ -597,6 +647,7 @@ fun ReportsScreen(model: AppViewModel) {
     val sessions by model.sessions.collectAsStateWithLifecycle()
     val settings by model.settings.collectAsStateWithLifecycle()
     val comparison by model.comparison.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val completed = sessions.filter { it.status == SessionStatus.COMPLETED }
     val selectedId = settings.selectedReportSessionId?.takeIf { id -> completed.any { it.id == id } }
     LaunchedEffect(settings.selectedReportSessionId, completed) {
@@ -604,14 +655,16 @@ fun ReportsScreen(model: AppViewModel) {
     }
     var pendingJson by remember { mutableStateOf<String?>(null) }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var exportedUri by remember { mutableStateOf<Uri?>(null) }
+    var exportedMime by remember { mutableStateOf("application/json") }
     val selected = completed.firstOrNull { it.id == selectedId }
     val jsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         val id = pendingJson
-        if (uri != null && id != null) model.exportJson(id, uri)
+        if (uri != null && id != null) { model.exportJson(id, uri); exportedUri = uri; exportedMime = "application/json" }
     }
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
         val id = pendingCsv
-        if (uri != null && id != null) model.exportCsv(id, uri)
+        if (uri != null && id != null) { model.exportCsv(id, uri); exportedUri = uri; exportedMime = "text/csv" }
     }
     val comparisonJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) model.exportComparisonJson(uri)
@@ -658,6 +711,19 @@ fun ReportsScreen(model: AppViewModel) {
                 onClick = { selected?.let { pendingCsv = it.id; csvLauncher.launch("fluxlab-${it.id}.csv") } },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.export_csv)) }
+            exportedUri?.let { uri ->
+                OutlinedButton(
+                    onClick = {
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = exportedMime
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(share, null))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.share_report)) }
+            }
             comparison?.let { value ->
                 HorizontalDivider()
                 Text(stringResource(R.string.comparison_summary), style = MaterialTheme.typography.titleMedium)
@@ -666,7 +732,7 @@ fun ReportsScreen(model: AppViewModel) {
                 Button(onClick = { comparisonJsonLauncher.launch("fluxlab-comparison.json") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_comparison_json)) }
                 OutlinedButton(onClick = { comparisonCsvLauncher.launch("fluxlab-comparison.csv") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_comparison_csv)) }
                 value.workloads.forEach { item ->
-                    Text("${workloadText(item.kind)}: ${item.percentageDelta?.let { format(it, "%") } ?: "—"} · ${confidenceText(item.confidence)}")
+                    Text("${workloadText(item.kind)}: ${item.percentageDelta?.let { format(it, "%") } ?: stringResource(R.string.not_supported)} · ${confidenceText(item.confidence)}")
                 }
             }
         }
@@ -717,6 +783,15 @@ fun SettingsScreen(model: AppViewModel) {
             }
             ToggleRow(stringResource(R.string.include_storage), settings.includeStorage, model::setIncludeStorage)
             ToggleRow(stringResource(R.string.advanced_metrics), settings.advancedMetrics, model::setAdvanced)
+            SettingSection(stringResource(R.string.monitoring_settings)) {
+                ToggleRow(stringResource(R.string.start_automatically), settings.autoStartMonitoring, model::setAutoStartMonitoring)
+                ToggleRow(stringResource(R.string.preserve_last_sample), settings.preserveLastSample, model::setPreserveLastSample)
+                ToggleRow(stringResource(R.string.idle_monitoring_policy), settings.stopMonitoringWhenIdle, model::setStopMonitoringWhenIdle)
+            }
+            SettingSection(stringResource(R.string.benchmark_settings)) {
+                ToggleRow(stringResource(R.string.confirm_readiness_warnings), settings.confirmReadinessWarnings, model::setConfirmReadinessWarnings)
+                ToggleRow(stringResource(R.string.screen_recording_declaration), settings.screenRecordingDeclared, model::setScreenRecordingDeclared)
+            }
             SettingSection(stringResource(R.string.benchmark_visuals)) {
                 BenchmarkVisualMode.entries.forEach { mode ->
                     FilterChip(
@@ -878,7 +953,7 @@ private fun CpuHistoryChart(samples: List<Pair<Long, Double?>>) {
                 }
             }
             val elapsed = (samples.last().first - samples.first().first) / 1_000
-            Text("0–100% · ${elapsed}s", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.cpu_chart_scale, elapsed), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -1040,82 +1115,100 @@ private fun detailTitle(kind: MetricDetailKind): String = when (kind) {
 fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -> Unit) {
     val state by model.dashboard.collectAsStateWithLifecycle()
     val telemetry = state.telemetry
+    val tabLabels = when (kind) {
+        MetricDetailKind.CPU -> listOf(R.string.summary, R.string.per_core, R.string.frequency, R.string.cluster)
+        MetricDetailKind.GPU -> listOf(R.string.summary, R.string.frequency, R.string.utilization, R.string.technical)
+        else -> emptyList()
+    }
+    var selectedTab by remember(kind) { mutableStateOf(0) }
     DetailPage(detailTitle(kind), onBack) {
+        if (tabLabels.isNotEmpty()) {
+            DetailTabs(tabLabels, selectedTab) { selectedTab = it }
+            Text(stringResource(R.string.selected_detail_tab, stringResource(tabLabels[selectedTab])), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         when (kind) {
             MetricDetailKind.CPU -> telemetry?.let {
-                MetricCard(stringResource(R.string.cpu), it.cpu.identity.model ?: stringResource(R.string.unknown),
-                    it.cpu.totalUsagePercent?.let { value -> usageText(value) } ?: stringResource(R.string.collecting_initial_samples),
-                    Icons.Default.Memory)
-                DetailStats(
-                    stringResource(R.string.cpu_usage_chart),
-                    state.cpuHistory.mapNotNull { it.second },
-                    "%",
-                )
-                CpuHistoryChart(state.cpuHistory)
-                val aggregateFrequencies = state.telemetryHistory.mapNotNull { sample -> sample.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) }
-                DetailStats(
-                    stringResource(R.string.aggregate_frequency),
-                    aggregateFrequencies,
-                    "GHz",
-                )
-                Sparkline(
-                    state.telemetryHistory.map { it.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) },
-                    Modifier.fillMaxWidth().height(100.dp),
-                )
-                Text(stringResource(R.string.minimum_frequency_value, it.cpu.cores.mapNotNull { core -> core.minimumFrequencyHz }.minOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.maximum_frequency_value, it.cpu.cores.mapNotNull { core -> core.maximumFrequencyHz }.maxOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.cpu_frequency_source, it.cpu.frequencySource ?: stringResource(R.string.not_supported)))
-                it.cpu.cores.forEach { core ->
-                    val frequency = core.currentFrequencyHz?.let { value -> format(value / 1_000_000_000.0, "GHz") }
-                        ?: stringResource(R.string.not_supported)
-                    MetricCard(
-                        stringResource(R.string.core_number, core.index),
-                        core.usagePercent?.let { value -> usageText(value) } ?: stringResource(R.string.collecting_initial_samples),
-                        listOfNotNull(
-                            frequency,
-                            if (core.online) stringResource(R.string.online) else stringResource(R.string.offline),
-                            core.governor?.let { governor -> stringResource(R.string.governor_value, governor) },
-                            core.cluster?.let { cluster -> stringResource(R.string.cluster_value, cluster) },
-                        ).joinToString(" • "),
-                        Icons.Default.Memory,
+                if (selectedTab == 0) {
+                    MetricCard(stringResource(R.string.cpu), it.cpu.identity.model ?: stringResource(R.string.unknown),
+                        it.cpu.totalUsagePercent?.let { value -> usageText(value) } ?: stringResource(R.string.collecting_initial_samples),
+                        Icons.Default.Memory, metric = FluxMetric.CPU)
+                    DetailStats(
+                        stringResource(R.string.cpu_usage_chart),
+                        state.cpuHistory.mapNotNull { it.second },
+                        "%",
                     )
+                    CpuHistoryChart(state.cpuHistory)
+                }
+                if (selectedTab == 0 || selectedTab == 2) {
+                    val aggregateFrequencies = state.telemetryHistory.mapNotNull { sample -> sample.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) }
+                    DetailStats(
+                        stringResource(R.string.aggregate_frequency),
+                        aggregateFrequencies,
+                        "GHz",
+                    )
+                    Sparkline(
+                        state.telemetryHistory.map { it.cpu.aggregateFrequencyHz?.div(1_000_000_000.0) },
+                        Modifier.fillMaxWidth().height(100.dp),
+                    )
+                    Text(stringResource(R.string.minimum_frequency_value, it.cpu.cores.mapNotNull { core -> core.minimumFrequencyHz }.minOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
+                    Text(stringResource(R.string.maximum_frequency_value, it.cpu.cores.mapNotNull { core -> core.maximumFrequencyHz }.maxOrNull()?.let { value -> format(value / 1_000_000_000.0, "GHz") } ?: stringResource(R.string.not_supported)))
+                    Text(stringResource(R.string.cpu_frequency_source, it.cpu.frequencySource ?: stringResource(R.string.not_supported)))
+                }
+                if (selectedTab == 1 || selectedTab == 3) {
+                    it.cpu.cores.filter { core -> selectedTab != 3 || core.cluster != null }.forEach { core ->
+                        val frequency = core.currentFrequencyHz?.let { value -> format(value / 1_000_000_000.0, "GHz") }
+                            ?: stringResource(R.string.not_supported)
+                        MetricCard(
+                            stringResource(R.string.core_number, core.index),
+                            core.usagePercent?.let { value -> usageText(value) } ?: stringResource(R.string.collecting_initial_samples),
+                            listOfNotNull(
+                                frequency,
+                                if (core.online) stringResource(R.string.online) else stringResource(R.string.offline),
+                                core.governor?.let { governor -> stringResource(R.string.governor_value, governor) },
+                                core.cluster?.let { cluster -> stringResource(R.string.cluster_value, cluster) },
+                            ).joinToString(" • "),
+                            Icons.Default.Memory,
+                        )
+                    }
                 }
             } ?: LoadingDetail()
             MetricDetailKind.GPU -> telemetry?.let {
                 val model = listOfNotNull(it.gpu.vendor, it.gpu.model).joinToString(" ").ifBlank { stringResource(R.string.gpu_not_identified) }
-                MetricCard(stringResource(R.string.gpu), model,
-                    it.gpu.currentFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported),
-                    Icons.Default.GraphicEq)
-                DetailStats(
-                    stringResource(R.string.frequency),
-                    state.telemetryHistory.mapNotNull { sample -> sample.gpu.currentFrequencyHz?.div(1_000_000.0) },
-                    "MHz",
-                )
-                Sparkline(
-                    state.telemetryHistory.map { it.gpu.currentFrequencyHz?.div(1_000_000.0) },
-                    Modifier.fillMaxWidth().height(100.dp),
-                )
-                Text(
-                    it.gpu.utilizationPercent?.let { value -> stringResource(R.string.utilization_value, usageText(value)) }
-                        ?: (it.gpu.utilizationAvailabilityReason ?: gpuCapabilityText(it.gpu.capabilityState)),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val utilizationHistory = state.gpuHistory.mapNotNull { it.second }
-                if (utilizationHistory.size >= 2) {
-                    DetailStats(stringResource(R.string.gpu_utilization_history), utilizationHistory, "%")
-                    Sparkline(state.gpuHistory.map { it.second }, Modifier.fillMaxWidth().height(100.dp))
+                if (selectedTab == 0) {
+                    MetricCard(stringResource(R.string.gpu), model,
+                        it.gpu.currentFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported),
+                        Icons.Default.GraphicEq, metric = FluxMetric.GPU)
                 }
-                Text(stringResource(R.string.minimum_frequency_value, it.gpu.minimumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.maximum_frequency_value, it.gpu.maximumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.gpu_driver_value, it.gpu.driver ?: stringResource(R.string.not_supported)))
-                Text(stringResource(R.string.gpu_frequency_source, it.gpu.frequencySource ?: stringResource(R.string.not_supported)))
-                var showGpuTechnical by remember { mutableStateOf(false) }
-                TextButton(onClick = { showGpuTechnical = !showGpuTechnical }) {
-                    Text(stringResource(if (showGpuTechnical) R.string.hide_technical_details else R.string.show_technical_details))
+                if (selectedTab == 0 || selectedTab == 1) {
+                    DetailStats(
+                        stringResource(R.string.frequency),
+                        state.telemetryHistory.mapNotNull { sample -> sample.gpu.currentFrequencyHz?.div(1_000_000.0) },
+                        "MHz",
+                    )
+                    Sparkline(
+                        state.telemetryHistory.map { it.gpu.currentFrequencyHz?.div(1_000_000.0) },
+                        Modifier.fillMaxWidth().height(100.dp),
+                    )
+                    Text(stringResource(R.string.minimum_frequency_value, it.gpu.minimumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
+                    Text(stringResource(R.string.maximum_frequency_value, it.gpu.maximumFrequencyHz?.let { value -> format(value / 1_000_000.0, "MHz") } ?: stringResource(R.string.not_supported)))
+                    Text(stringResource(R.string.gpu_frequency_source, it.gpu.frequencySource ?: stringResource(R.string.not_supported)))
                 }
-                if (showGpuTechnical) {
+                if (selectedTab == 0 || selectedTab == 2) {
+                    Text(
+                        it.gpu.utilizationPercent?.let { value -> stringResource(R.string.utilization_value, usageText(value)) }
+                            ?: (it.gpu.utilizationAvailabilityReason ?: gpuCapabilityText(it.gpu.capabilityState)),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val utilizationHistory = state.gpuHistory.mapNotNull { it.second }
+                    if (utilizationHistory.size >= 2) {
+                        DetailStats(stringResource(R.string.gpu_utilization_history), utilizationHistory, "%")
+                        Sparkline(state.gpuHistory.map { it.second }, Modifier.fillMaxWidth().height(100.dp))
+                    }
+                }
+                if (selectedTab == 3) {
                     Text(stringResource(R.string.technical_details), style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(R.string.gpu_raw_model, it.gpu.model ?: stringResource(R.string.not_supported)))
+                    Text(stringResource(R.string.gpu_driver_value, it.gpu.driver ?: stringResource(R.string.not_supported)))
                     it.gpu.driverPath?.let { path -> Text(stringResource(R.string.gpu_driver_path, path), style = MaterialTheme.typography.bodySmall) }
                     Text(stringResource(R.string.gpu_utilization_source, it.gpu.utilizationSource ?: it.gpu.utilizationAvailabilityReason ?: stringResource(R.string.gpu_utilization_unavailable)))
                     it.gpu.warnings.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
@@ -1124,7 +1217,7 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
             MetricDetailKind.MEMORY -> telemetry?.let {
                 MetricCard(stringResource(R.string.memory), memoryValue(it.memory.usedKb, it.memory.totalKb),
                     stringResource(R.string.available_value, it.memory.availableKb?.let(::formatKib) ?: stringResource(R.string.not_supported)),
-                    Icons.Default.DataUsage)
+                    Icons.Default.DataUsage, metric = FluxMetric.MEMORY)
                 Text(stringResource(R.string.memory_total_value, it.memory.totalKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 Text(stringResource(R.string.memory_used_value, it.memory.usedKb?.let(::formatKib) ?: stringResource(R.string.not_supported)))
                 DetailStats(stringResource(R.string.memory_used), state.memoryHistory.mapNotNull { it.second }, "%")
@@ -1157,7 +1250,7 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                         ?: stringResource(R.string.not_supported),
                     it.thermal.hottestZone?.let { zone -> stringResource(R.string.hottest_sensor, zone.name) }
                         ?: stringResource(R.string.thermal_status_unavailable),
-                    Icons.Default.DeviceThermostat)
+                    Icons.Default.DeviceThermostat, metric = FluxMetric.THERMAL)
                 DetailStats(stringResource(R.string.temperature), state.thermalHistory.mapNotNull { it.second }, "°C")
                 Sparkline(state.thermalHistory.map { it.second }, Modifier.fillMaxWidth().height(100.dp))
                 Text(thermalReadinessText(it.thermal.eligibility), color = MaterialTheme.colorScheme.primary)
@@ -1198,6 +1291,16 @@ fun MetricDetailScreen(model: AppViewModel, kind: MetricDetailKind, onBack: () -
                 MetricCard(stringResource(R.string.synthesis_status), value?.let { statusText(it.snapshot.freshness.name) } ?: stringResource(R.string.unavailable), "SynthesisCore", Icons.Default.Sync)
             }
             MetricDetailKind.PROFILE -> MetricCard(stringResource(R.string.active_profile), state.flux.activeProfile ?: stringResource(R.string.not_supported), state.flux.versionName, Icons.Default.Tune)
+        }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun DetailTabs(labels: List<Int>, selected: Int, onSelected: (Int) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(FluxSpacing.compactGap)) {
+        labels.forEachIndexed { index, label ->
+            FilterChip(selected = selected == index, onClick = { onSelected(index) }, label = { Text(stringResource(label)) })
         }
     }
 }
@@ -1273,6 +1376,7 @@ fun BatteryDetailScreen(model: AppViewModel, onBack: () -> Unit) {
                 battery.levelPercent?.let { it.toString() + "%" } ?: stringResource(R.string.unknown),
                 batteryPowerText(telemetry),
                 Icons.Default.BatteryChargingFull,
+                metric = FluxMetric.BATTERY,
             )
             Text(stringResource(R.string.battery_overview), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.charging_state_value, chargingStateText(battery.chargingState)))
@@ -1402,6 +1506,7 @@ fun StorageDetailScreen(model: AppViewModel, onBack: () -> Unit) {
                     (storage.identity.totalCapacityBytes?.let(::formatBytes) ?: stringResource(R.string.unknown)),
                 storage.identity.storageModel ?: stringResource(R.string.storage_identity_unavailable),
                 Icons.Default.Storage,
+                metric = FluxMetric.STORAGE,
             )
             Text(stringResource(R.string.identity), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.storage_type_value, storageTypeText(storage.identity.storageType)))
@@ -1475,40 +1580,53 @@ private fun storageHealthAvailabilityText(value: com.febricahyaa.fluxlab.model.S
     com.febricahyaa.fluxlab.model.StorageHealthAvailability.UNKNOWN -> stringResource(R.string.unknown)
 }
 
+@Composable
 private fun lifetimeText(value: com.febricahyaa.fluxlab.model.StorageLifetimeEstimate): String =
     if (value.rangeStartPercent != null && value.rangeEndPercent != null) {
         value.rangeStartPercent.toString() + "–" + value.rangeEndPercent + "%"
     } else {
-        "—"
+        stringResource(R.string.not_supported)
     }
 
 @Composable
 fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
     val progress by model.benchmarkProgress.collectAsStateWithLifecycle()
     val state by model.dashboard.collectAsStateWithLifecycle()
-    DetailPage(stringResource(R.string.active_benchmark), onBack) {
+    var cancelRequested by remember { mutableStateOf(false) }
+    DetailPage(progress.preset?.let { presetLabel(it) } ?: stringResource(R.string.active_benchmark), onBack) {
         val fraction = if (progress.totalSteps > 0) ((progress.completedSteps.toFloat() + progress.currentRepetition.toFloat() / progress.totalRepetitions.coerceAtLeast(1)) / progress.totalSteps) else 0f
-        CircularProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.size(128.dp))
+        FluxGauge(fraction.coerceIn(0f, 1f), fluxMetricColor(FluxMetric.CPU), Modifier.size(128.dp), "${(fraction * 100f).toInt()}%")
         Text(stageText(progress.stage), style = MaterialTheme.typography.headlineSmall)
-        progress.workload?.let { Text(workloadText(it), style = MaterialTheme.typography.titleMedium) }
+        progress.workload?.let { Text(stringResource(R.string.workload_current, workloadText(it)), style = MaterialTheme.typography.titleMedium) }
         Text(stringResource(R.string.workload_progress, progress.completedSteps, progress.totalSteps))
         progress.currentRepetition.takeIf { it > 0 }?.let {
             Text(stringResource(R.string.repetition_progress, it, progress.totalRepetitions))
         }
         progress.elapsedMs.takeIf { it > 0L }?.let { Text(stringResource(R.string.elapsed_value, it / 1_000L)) }
         progress.estimatedRemainingMs?.let { Text(stringResource(R.string.remaining_value, it / 1_000L)) }
-        progress.workload?.let { WorkloadVisual(it, progress.stage, progress.visualMode, fraction, progress.activeThreadCount) }
+        LinearProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+        val workloadFraction = when {
+            progress.totalWorkUnits != null && progress.totalWorkUnits > 0L -> progress.completedWorkUnits.toFloat() / progress.totalWorkUnits
+            progress.totalRepetitions > 0 -> progress.currentRepetition.toFloat() / progress.totalRepetitions
+            else -> fraction
+        }
+        progress.workload?.let { WorkloadVisual(it, progress.stage, progress.visualMode, workloadFraction, progress.activeThreadCount) }
+        Text(stringResource(R.string.workload_timeline), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.workload_completed_count, progress.completedSteps, progress.totalWorkloads))
+        Text(stringResource(R.string.workload_pending_count, (progress.totalWorkloads - progress.completedSteps).coerceAtLeast(0)), color = MaterialTheme.colorScheme.onSurfaceVariant)
         MetricCard(
             stringResource(R.string.cpu),
             state.telemetry?.cpu?.totalUsagePercent?.let { format(it, "%") } ?: stringResource(R.string.not_supported),
             stringResource(R.string.live_sample),
             Icons.Default.Memory,
+            metric = FluxMetric.CPU,
         )
         MetricCard(
             stringResource(R.string.thermal),
             state.telemetry?.thermal?.hottestZone?.temperatureCelsius?.let { format(it, "°C") } ?: stringResource(R.string.not_supported),
             thermalReadinessText(state.telemetry?.thermal?.eligibility ?: com.febricahyaa.fluxlab.model.ThermalEligibility.THERMAL_STATUS_UNAVAILABLE),
             Icons.Default.DeviceThermostat,
+            metric = FluxMetric.THERMAL,
         )
         MetricCard(
             stringResource(R.string.gpu),
@@ -1518,16 +1636,27 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
             state.telemetry?.gpu?.utilizationPercent?.let { stringResource(R.string.live_sample) }
                 ?: stringResource(R.string.gpu_utilization_unavailable),
             Icons.Default.GraphicEq,
+            metric = FluxMetric.GPU,
         )
         MetricCard(
-            stringResource(R.string.memory),
-            state.telemetry?.memory?.usedKb?.let { formatKib(it) } ?: stringResource(R.string.not_supported),
+            stringResource(R.string.power),
             state.telemetry?.battery?.calculatedPowerWatts?.let { format(it, "W") } ?: stringResource(R.string.power_unavailable),
-            Icons.Default.DataUsage,
+            state.telemetry?.battery?.let { chargingStateText(it.chargingState) } ?: stringResource(R.string.power_state_unknown),
+            Icons.Default.BatteryChargingFull,
+            metric = FluxMetric.BATTERY,
         )
-        OutlinedButton(onClick = model::cancelQuickTest, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { cancelRequested = true }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.cancel_test))
         }
+    }
+    if (cancelRequested) {
+        AlertDialog(
+            onDismissRequest = { cancelRequested = false },
+            title = { Text(stringResource(R.string.cancel_benchmark_title)) },
+            text = { Text(stringResource(R.string.cancel_benchmark_body)) },
+            confirmButton = { TextButton(onClick = { model.cancelQuickTest(); cancelRequested = false }) { Text(stringResource(R.string.confirm_delete)) } },
+            dismissButton = { TextButton(onClick = { cancelRequested = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
@@ -1577,16 +1706,18 @@ private fun WorkloadVisual(
                     drawCircle(color, 6f, Offset(size.width * bounded, y))
                 }
             }
-            }
         }
     }
 }
 
 @Composable
-fun SessionDetailScreen(model: AppViewModel, onBack: () -> Unit) {
+fun SessionDetailScreen(model: AppViewModel, onBack: () -> Unit, sessionId: String? = null) {
     val sessions by model.sessions.collectAsStateWithLifecycle()
     DetailPage(stringResource(R.string.latest_session), onBack) {
-        sessions.firstOrNull()?.let { session ->
+        sessions.firstOrNull { it.id == sessionId }?.let { session ->
+            MetricCard(sessionLabel(session), sessionStatusText(session.status), presetLabel(session.environment.presetConfiguration.preset), Icons.Default.Analytics)
+            session.workloadResults.forEach { result -> Text(workloadText(result.kind) + " • " + engineeringFormat(result.statistics.median, result.unit)) }
+        } ?: sessions.firstOrNull()?.let { session ->
             MetricCard(sessionLabel(session), sessionStatusText(session.status), presetLabel(session.environment.presetConfiguration.preset), Icons.Default.Analytics)
             session.workloadResults.forEach { result -> Text(workloadText(result.kind) + " • " + engineeringFormat(result.statistics.median, result.unit)) }
         } ?: Text(stringResource(R.string.no_sessions))
@@ -1622,6 +1753,16 @@ private fun presetLabel(preset: BenchmarkPreset): String = stringResource(when (
     BenchmarkPreset.STANDARD -> R.string.standard_label
     BenchmarkPreset.EXTENDED -> R.string.extended_label
 })
+
+@Composable
+private fun presetPurpose(preset: BenchmarkPreset): String = stringResource(when (preset) {
+    BenchmarkPreset.QUICK -> R.string.preset_purpose_quick
+    BenchmarkPreset.STANDARD -> R.string.preset_purpose_standard
+    BenchmarkPreset.EXTENDED -> R.string.preset_purpose_extended
+})
+
+@Composable
+private fun durationText(milliseconds: Long): String = stringResource(R.string.duration_seconds, (milliseconds / 1_000L).toInt())
 
 @Composable
 private fun presetCta(preset: BenchmarkPreset): String = stringResource(when (preset) {

@@ -68,7 +68,7 @@ class AppViewModel(application: Application, private val container: AppContainer
         repository = container.repository,
         storage = container.storageSuite,
         telemetryProvider = { container.telemetryRepository.state.value.latest },
-        monitoring = { active -> MonitoringService.setRunning(getApplication(), active) },
+        monitoring = ::setBenchmarkMonitoring,
     )
     val benchmarkProgress: StateFlow<BenchmarkProgress> = engine.progress
     private var benchmarkJob: Job? = null
@@ -80,6 +80,14 @@ class AppViewModel(application: Application, private val container: AppContainer
         viewModelScope.launch {
             settings.map { it.samplingIntervalMs }.distinctUntilChanged().collect { interval ->
                 if (monitoringEnabled) container.telemetryRepository.start(interval)
+            }
+        }
+        viewModelScope.launch {
+            settings.map { it.autoStartMonitoring }.distinctUntilChanged().collect { enabled ->
+                monitoringEnabled = enabled
+                if (enabled) container.telemetryRepository.start(settings.value.samplingIntervalMs)
+                else if (settings.value.preserveLastSample) container.telemetryRepository.stop()
+                else container.telemetryRepository.reset()
             }
         }
         viewModelScope.launch {
@@ -112,7 +120,7 @@ class AppViewModel(application: Application, private val container: AppContainer
                 )
             }
         }
-        container.telemetryRepository.start(settings.value.samplingIntervalMs)
+        if (settings.value.autoStartMonitoring) container.telemetryRepository.start(settings.value.samplingIntervalMs)
         viewModelScope.launch {
             mutableDashboard.value = mutableDashboard.value.copy(root = RootState.Checking)
             val root = container.rootGateway.checkAvailability()
@@ -152,6 +160,11 @@ class AppViewModel(application: Application, private val container: AppContainer
         val selectedVisualMode = settings.value.visualMode
         val selectedIncludeStorage = settings.value.includeStorage
         val selectedConfiguration = BenchmarkPresetConfig.forPreset(selectedPreset)
+        val readinessWarnings = (readiness() as? ReadinessResult.ReadyWithWarnings)?.reasons.orEmpty()
+        val methodologyWarnings = buildList {
+            addAll(readinessWarnings)
+            if (settings.value.screenRecordingDeclared) add("Screen recording declared by operator")
+        }.distinct()
         benchmarkJob = viewModelScope.launch {
             val telemetry = dashboard.value.telemetry ?: return@launch
             val environment = BenchmarkEnvironment(
@@ -161,7 +174,7 @@ class AppViewModel(application: Application, private val container: AppContainer
                 deviceModel = telemetry.system.model,
                 androidFingerprint = telemetry.system.buildFingerprint,
                 kernelVersion = telemetry.system.kernelVersion,
-                flux = dashboard.value.flux,
+                flux = dashboard.value.flux.copy(warnings = (dashboard.value.flux.warnings + methodologyWarnings).distinct()),
                 synthesisAvailable = dashboard.value.synthesis is SynthesisReadResult.Success,
                 rootState = rootName(dashboard.value.root),
                 charging = telemetry.battery.charging,
@@ -183,8 +196,10 @@ class AppViewModel(application: Application, private val container: AppContainer
         monitoringEnabled = enabled
         if (enabled) {
             container.telemetryRepository.start(settings.value.samplingIntervalMs)
-        } else {
+        } else if (settings.value.preserveLastSample) {
             container.telemetryRepository.stop()
+        } else {
+            container.telemetryRepository.reset()
         }
     }
 
@@ -242,6 +257,26 @@ class AppViewModel(application: Application, private val container: AppContainer
     fun setLanguage(value: LanguageSetting) = viewModelScope.launch {
         container.settingsStore.setLanguage(value)
         applyLanguage(value)
+    }
+    fun setAutoStartMonitoring(value: Boolean) = viewModelScope.launch { container.settingsStore.setAutoStartMonitoring(value) }
+    fun setPreserveLastSample(value: Boolean) = viewModelScope.launch { container.settingsStore.setPreserveLastSample(value) }
+    fun setStopMonitoringWhenIdle(value: Boolean) = viewModelScope.launch { container.settingsStore.setStopMonitoringWhenIdle(value) }
+    fun setScreenRecordingDeclared(value: Boolean) = viewModelScope.launch { container.settingsStore.setScreenRecordingDeclared(value) }
+    fun setConfirmReadinessWarnings(value: Boolean) = viewModelScope.launch { container.settingsStore.setConfirmReadinessWarnings(value) }
+
+    private fun setBenchmarkMonitoring(active: Boolean) {
+        MonitoringService.setRunning(getApplication(), active)
+        if (active) {
+            monitoringEnabled = true
+            container.telemetryRepository.start(settings.value.samplingIntervalMs)
+        } else if (!settings.value.autoStartMonitoring || settings.value.stopMonitoringWhenIdle) {
+            monitoringEnabled = false
+            if (settings.value.preserveLastSample) container.telemetryRepository.stop()
+            else container.telemetryRepository.reset()
+        } else {
+            monitoringEnabled = true
+            container.telemetryRepository.start(settings.value.samplingIntervalMs)
+        }
     }
 
     private suspend fun refreshRuntime() {
