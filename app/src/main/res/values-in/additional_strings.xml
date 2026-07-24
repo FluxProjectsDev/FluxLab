@@ -83,6 +83,8 @@
     <string name="about_update_source_not_configured">Sumber pembaruan belum dikonfigurasi</string>
     <string name="about_update_source_explanation">Build FluxLab ini belum memiliki manifest update milik proyek, sehingga tidak akan mengarang versi terbaru atau aksi unduhan.</string>
     <string name="about_update_failure_detail">Detail teknis penyedia update: %1$s</string>
+    <string name="about_show_update_diagnostics">Tampilkan diagnostik update</string>
+    <string name="about_hide_update_diagnostics">Sembunyikan diagnostik update</string>
     <string name="about_update_current_version">Versi terpasang: %1$s</string>
     <string name="about_current_version_label">Versi saat ini</string>
     <string name="about_latest_version_label">Versi terbaru</string>
@@ -104,4 +106,5 @@
     <string name="about_designer_role_label">Peran</string>
     <string name="about_project_label">Proyek</string>
     <string name="about_open_profile">Buka profil</string>
+    <string name="about_external_link_unavailable">Tidak ada aplikasi yang dapat membuka tautan ini.</string>
 </resources>

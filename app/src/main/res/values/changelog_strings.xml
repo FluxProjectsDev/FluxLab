@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="changelog_version_0_1_0">0.1.0</string>
+    <string name="changelog_new_local_telemetry">Local-first telemetry for CPU, GPU, memory, storage, thermal, and battery state.</string>
+    <string name="changelog_new_repeatable_benchmarks">Repeatable benchmark presets with persisted Room sessions and JSON/CSV export.</string>
+    <string name="changelog_improved_material_dashboard">Material 3 monitoring dashboard with bounded graphs and capability-aware states.</string>
+    <string name="changelog_limitation_oem_access">OEM access to GPU counters, storage health, thermal zones, and battery capacity varies by device.</string>
+</resources>

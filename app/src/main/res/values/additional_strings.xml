@@ -83,6 +83,8 @@
     <string name="about_update_source_not_configured">Update source not configured</string>
     <string name="about_update_source_explanation">FluxLab has no project-owned update manifest configured in this build, so it will not invent a latest version or download action.</string>
     <string name="about_update_failure_detail">Technical update-provider detail: %1$s</string>
+    <string name="about_show_update_diagnostics">Show update diagnostics</string>
+    <string name="about_hide_update_diagnostics">Hide update diagnostics</string>
     <string name="about_update_current_version">Installed version: %1$s</string>
     <string name="about_current_version_label">Current version</string>
     <string name="about_latest_version_label">Latest version</string>
@@ -104,4 +106,5 @@
     <string name="about_designer_role_label">Role</string>
     <string name="about_project_label">Project</string>
     <string name="about_open_profile">Open profile</string>
+    <string name="about_external_link_unavailable">No application can open this link.</string>
 </resources>

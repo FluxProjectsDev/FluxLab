@@ -97,41 +97,43 @@ enum class ReleaseChannel { STABLE, BETA, DEVELOPMENT }
 
 data class ChangelogEntry(
     val versionName: String,
+    val versionNameResource: Int,
     val releaseDate: String?,
     val channel: ReleaseChannel,
-    val categories: Map<ChangelogCategory, List<String>>,
-    val indonesianCategories: Map<ChangelogCategory, List<String>> = emptyMap(),
+    val categories: Map<ChangelogCategory, List<Int>>,
+    val indonesianCategories: Map<ChangelogCategory, List<Int>> = emptyMap(),
 )
 
-/** Maintained release metadata. Entries are intentionally versioned outside composables. */
+/** Maintained release metadata. User-facing release text lives in localized resources. */
 object ChangelogCatalog {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
             versionName = "0.1.0",
+            versionNameResource = R.string.changelog_version_0_1_0,
             releaseDate = null,
             channel = ReleaseChannel.STABLE,
             categories = mapOf(
                 ChangelogCategory.NEW to listOf(
-                    "Local-first telemetry for CPU, GPU, memory, storage, thermal, and battery state.",
-                    "Repeatable benchmark presets with persisted Room sessions and JSON/CSV export.",
+                    R.string.changelog_new_local_telemetry,
+                    R.string.changelog_new_repeatable_benchmarks,
                 ),
                 ChangelogCategory.IMPROVED to listOf(
-                    "Material 3 monitoring dashboard with bounded graphs and capability-aware states.",
+                    R.string.changelog_improved_material_dashboard,
                 ),
                 ChangelogCategory.KNOWN_LIMITATIONS to listOf(
-                    "OEM access to GPU counters, storage health, thermal zones, and battery capacity varies by device.",
+                    R.string.changelog_limitation_oem_access,
                 ),
             ),
             indonesianCategories = mapOf(
                 ChangelogCategory.NEW to listOf(
-                    "Telemetri lokal untuk CPU, GPU, memori, penyimpanan, termal, dan baterai.",
-                    "Preset benchmark berulang dengan sesi Room serta ekspor JSON/CSV.",
+                    R.string.changelog_new_local_telemetry,
+                    R.string.changelog_new_repeatable_benchmarks,
                 ),
                 ChangelogCategory.IMPROVED to listOf(
-                    "Dashboard pemantauan Material 3 dengan grafik terbatas dan status sesuai kemampuan perangkat.",
+                    R.string.changelog_improved_material_dashboard,
                 ),
                 ChangelogCategory.KNOWN_LIMITATIONS to listOf(
-                    "Akses OEM ke penghitung GPU, kesehatan penyimpanan, zona termal, dan kapasitas baterai berbeda di setiap perangkat.",
+                    R.string.changelog_limitation_oem_access,
                 ),
             ),
         ),

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="changelog_version_0_1_0">0.1.0</string>
+    <string name="changelog_new_local_telemetry">Telemetri lokal untuk CPU, GPU, memori, penyimpanan, termal, dan baterai.</string>
+    <string name="changelog_new_repeatable_benchmarks">Preset benchmark berulang dengan sesi Room serta ekspor JSON/CSV.</string>
+    <string name="changelog_improved_material_dashboard">Dashboard pemantauan Material 3 dengan grafik terbatas dan status sesuai kemampuan perangkat.</string>
+    <string name="changelog_limitation_oem_access">Akses OEM ke penghitung GPU, kesehatan penyimpanan, zona termal, dan kapasitas baterai berbeda di setiap perangkat.</string>
+</resources>

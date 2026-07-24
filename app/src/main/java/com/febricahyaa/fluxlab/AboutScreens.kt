@@ -3,6 +3,7 @@ package com.febricahyaa.fluxlab
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -183,7 +184,7 @@ fun ChangelogScreen(model: AppViewModel, onBack: () -> Unit) {
                 Column(Modifier.padding(FluxSpacing.cardInternalPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(entry.versionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(stringResource(entry.versionNameResource), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(listOfNotNull(entry.releaseDate ?: stringResource(R.string.about_release_date_unavailable), changelogChannelLabel(entry.channel)).joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (isCurrent) AboutBadge(stringResource(R.string.about_current_badge), FluxMetric.SUCCESS)
@@ -195,7 +196,7 @@ fun ChangelogScreen(model: AppViewModel, onBack: () -> Unit) {
                         val localizedCategories = if (useIndonesian) entry.indonesianCategories else entry.categories
                         localizedCategories[category]?.takeIf { it.isNotEmpty() }?.let { bullets ->
                             Text(changelogCategoryLabel(category), style = MaterialTheme.typography.titleSmall, color = fluxMetricColor(FluxMetric.CPU))
-                            bullets.forEach { bullet -> Text("• $bullet", style = MaterialTheme.typography.bodyMedium) }
+                            bullets.forEach { bullet -> Text("• ${stringResource(bullet)}", style = MaterialTheme.typography.bodyMedium) }
                         }
                     }
                 }
@@ -209,6 +210,7 @@ fun ChangelogScreen(model: AppViewModel, onBack: () -> Unit) {
 fun UpdateInformationScreen(model: AppViewModel, onBack: () -> Unit) {
     val state by model.aboutLegal.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showTechnicalFailure by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { model.checkForUpdates() }
     AboutScaffold(stringResource(R.string.about_update_title), onBack) {
         AboutHeaderCard(stringResource(R.string.about_update_header), stringResource(R.string.about_update_subtitle), Icons.Default.Update, when (state.update) {
@@ -250,7 +252,14 @@ fun UpdateInformationScreen(model: AppViewModel, onBack: () -> Unit) {
             }
             is UpdateCheckState.Failed -> {
                 AboutStatusCard(stringResource(R.string.about_update_failed), Icons.Default.Refresh, FluxMetric.ERROR)
-                Text(stringResource(R.string.about_update_failure_detail, update.reason), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { showTechnicalFailure = !showTechnicalFailure }) {
+                    Icon(if (showTechnicalFailure) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(if (showTechnicalFailure) R.string.about_hide_update_diagnostics else R.string.about_show_update_diagnostics))
+                }
+                if (showTechnicalFailure) {
+                    Text(stringResource(R.string.about_update_failure_detail, update.reason), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Button(onClick = model::checkForUpdates, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.about_retry)) }
             }
             UpdateCheckState.NetworkUnavailable -> {
@@ -310,7 +319,10 @@ fun LegalContentScreen(model: AppViewModel, document: AboutDocument, onBack: () 
 fun CreditsScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val context = LocalContext.current
     AboutScaffold(stringResource(R.string.about_credits_title), onBack) {
-        AboutDesignerCard(onClick = onBack)
+        AboutDesignerCard(
+            enabled = AboutLinks.designerProfileUrl != null,
+            onClick = { AboutLinks.designerProfileUrl?.let { openExternal(context, it) } },
+        )
         Text(stringResource(R.string.about_designer_profile_unavailable), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         AboutSectionTitle(stringResource(R.string.about_project_credits))
         AboutInfoCard(listOf(
@@ -392,8 +404,8 @@ private fun AboutHeaderCard(title: String, subtitle: String, icon: androidx.comp
 }
 
 @Composable
-private fun AboutDesignerCard(onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().semantics { role = Role.Button; contentDescription = stringResource(R.string.about_designer_name) }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = FluxShapes.material.medium) {
+private fun AboutDesignerCard(enabled: Boolean = true, onClick: () -> Unit) {
+    Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().semantics { if (enabled) { role = Role.Button }; contentDescription = stringResource(R.string.about_designer_name) }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = FluxShapes.material.medium) {
         Row(Modifier.padding(FluxSpacing.largeCardPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap)) {
             Surface(shape = FluxShapes.material.large, color = fluxMetricColor(FluxMetric.GPU).copy(alpha = .18f), modifier = Modifier.size(64.dp)) {
                 Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, stringResource(R.string.about_designer_name), tint = fluxMetricColor(FluxMetric.GPU), modifier = Modifier.size(30.dp)) }
@@ -531,4 +543,15 @@ private fun formatAboutBytes(value: Long?): String = when {
     else -> "$value B"
 }
 
-private fun openExternal(context: Context, url: String) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+private fun openExternal(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    try {
+        if (intent.resolveActivity(context.packageManager) == null) {
+            android.widget.Toast.makeText(context, R.string.about_external_link_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            context.startActivity(intent)
+        }
+    } catch (_: ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, R.string.about_external_link_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+    }
+}

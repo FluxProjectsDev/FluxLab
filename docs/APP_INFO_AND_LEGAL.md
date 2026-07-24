@@ -9,8 +9,9 @@ and progressive disclosure as the monitoring dashboard.
 
 - Package and build identity come from Android `PackageInfo`, `ApplicationInfo`,
   `BuildConfig`, and runtime ABI information.
-- Changelog metadata is maintained in `AboutLegal.kt` as versioned structured
-  release metadata. Production does not include future or sample versions.
+- Changelog metadata is maintained as versioned structured entries in `AboutLegal.kt`;
+  user-facing release notes and version labels live in localized `changelog_strings.xml`
+  resources. Production does not include future or sample versions.
 - Privacy, terms, and license documents are bundled raw Markdown resources with
   English and Indonesian variants. The repository parses them off the main
   thread before the UI renders them.
@@ -41,7 +42,8 @@ provider is configured.
 
 Hub rows are full-card Material interactions with semantic roles and status
 text. Version details support copy and share through Android system actions.
-Changelog entries expand and collapse from structured data. Tests cover
-Markdown parsing, localized changelog availability, update-source honesty, and
-detail-route bottom-navigation exclusion. Garnet validation remains required
+Changelog entries expand and collapse from structured data. JVM tests cover Markdown
+parsing, localized changelog availability, and update-source honesty; AndroidTest
+coverage exercises hub, version, changelog, update, legal, credits, and support routes.
+Detail-route bottom-navigation exclusion remains covered. Garnet validation remains required
 for device rendering and external-link behavior.
