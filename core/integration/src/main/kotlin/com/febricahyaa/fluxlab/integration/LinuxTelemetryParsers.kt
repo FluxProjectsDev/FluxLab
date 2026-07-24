@@ -134,6 +134,9 @@ object SwapParser {
                 val priority = fields.getOrNull(4)?.toIntOrNull()
                 com.febricahyaa.fluxlab.model.SwapDeviceTelemetry(fields[0], fields[1], total, used, priority)
             }
+            .toList()
+}
+
 data class PsiValues(
     val someAvg10: Double?,
     val fullAvg10: Double?,
