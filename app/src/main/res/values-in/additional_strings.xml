@@ -2,7 +2,7 @@
 <resources>
     <string name="workload_list">Tes native CPU integer, floating-point, multi-thread, salin memori, isi memori, latensi pointer, dan penyimpanan privat opsional.</string>
     <string name="cpu_usage_chart">Riwayat penggunaan CPU (%)</string>
-    <string name="cpu_chart_scale">0–100% • %1$d detik</string>
+    <string name="cpu_chart_scale">0–100%% • %1$d detik</string>
     <string name="about_legal">Tentang &amp; Legal</string>
     <string name="about_legal_subtitle">Identitas produk, versi, perubahan, dan sumber legal</string>
     <string name="about_description">FluxLab adalah toolkit diagnostik dan benchmark untuk pengguna Android yang ingin mengukur, memverifikasi, dan memahami performa perangkat secara lebih mendalam.</string>

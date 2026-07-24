@@ -497,7 +497,7 @@ fun TestsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
                             presetLabel(preset),
                             presetPurpose(preset),
                             stringResource(R.string.preset_card_summary, durationText(config.maximumDurationMs), config.measuredRepetitionCount, 6 + if (settings.includeStorage) 3 else 0),
-                            Icons.Default.Science,
+                            Icons.Default.Analytics,
                             modifier = Modifier.fillMaxWidth(1f / columns),
                             onClick = { model.setPreset(preset) },
                             metric = if (settings.preset == preset) FluxMetric.CPU else FluxMetric.UNAVAILABLE,
@@ -1613,8 +1613,9 @@ fun ActiveBenchmarkScreen(model: AppViewModel, onBack: () -> Unit) {
         progress.elapsedMs.takeIf { it > 0L }?.let { Text(stringResource(R.string.elapsed_value, it / 1_000L)) }
         progress.estimatedRemainingMs?.let { Text(stringResource(R.string.remaining_value, it / 1_000L)) }
         LinearProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+        val totalWorkUnits = progress.totalWorkUnits
         val workloadFraction = when {
-            progress.totalWorkUnits != null && progress.totalWorkUnits > 0L -> progress.completedWorkUnits.toFloat() / progress.totalWorkUnits
+            totalWorkUnits != null && totalWorkUnits > 0L -> progress.completedWorkUnits.toFloat() / totalWorkUnits.toFloat()
             progress.totalRepetitions > 0 -> progress.currentRepetition.toFloat() / progress.totalRepetitions
             else -> fraction
         }

@@ -56,7 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,6 +114,7 @@ fun VersionInformationScreen(model: AppViewModel, onBack: () -> Unit) {
             AboutUnavailableCard(stringResource(R.string.about_version_unavailable))
         } else {
             AboutHero(info)
+            val versionTitle = stringResource(R.string.about_version_title)
             val versionSummary = listOf(
                 stringResource(R.string.about_version_line, info.versionName ?: stringResource(R.string.about_unavailable_value)),
                 stringResource(R.string.about_version_code_line, info.versionCode?.toString() ?: stringResource(R.string.about_unavailable_value)),
@@ -122,7 +123,7 @@ fun VersionInformationScreen(model: AppViewModel, onBack: () -> Unit) {
             ).joinToString("\n")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
-                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(stringResource(R.string.about_version_title), versionSummary))
+                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(versionTitle, versionSummary))
                     copied = true
                 }, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.ContentCopy, stringResource(R.string.about_copy_version))
@@ -149,7 +150,7 @@ fun VersionInformationScreen(model: AppViewModel, onBack: () -> Unit) {
                 stringResource(R.string.about_update_time_label) to formatAboutTimestamp(info.updateTimeEpochMs),
                 stringResource(R.string.about_language_label) to aboutLanguageLabel(settings.language),
                 stringResource(R.string.about_appearance_label) to aboutThemeLabel(settings.theme),
-                stringResource(R.string.about_color_style_label) to colorStyleName(settings.colorStyle),
+                stringResource(R.string.about_color_style_label) to stringResource(if (settings.colorStyle == ColorStyle.FLUX) R.string.color_style_flux else R.string.color_style_dynamic),
             ))
             AboutSectionTitle(stringResource(R.string.about_advanced_information))
             TextButton(onClick = { showAdvanced = !showAdvanced }) {
@@ -405,10 +406,11 @@ private fun AboutHeaderCard(title: String, subtitle: String, icon: androidx.comp
 
 @Composable
 private fun AboutDesignerCard(enabled: Boolean = true, onClick: () -> Unit) {
-    Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().semantics { if (enabled) { role = Role.Button }; contentDescription = stringResource(R.string.about_designer_name) }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = FluxShapes.material.medium) {
+    val designerName = stringResource(R.string.about_designer_name)
+    Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().semantics { if (enabled) { role = Role.Button }; contentDescription = designerName }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = FluxShapes.material.medium) {
         Row(Modifier.padding(FluxSpacing.largeCardPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap)) {
             Surface(shape = FluxShapes.material.large, color = fluxMetricColor(FluxMetric.GPU).copy(alpha = .18f), modifier = Modifier.size(64.dp)) {
-                Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, stringResource(R.string.about_designer_name), tint = fluxMetricColor(FluxMetric.GPU), modifier = Modifier.size(30.dp)) }
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, designerName, tint = fluxMetricColor(FluxMetric.GPU), modifier = Modifier.size(30.dp)) }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(stringResource(R.string.about_designed_by), style = MaterialTheme.typography.labelMedium, color = fluxMetricColor(FluxMetric.GPU))
@@ -436,7 +438,8 @@ private fun AboutActionRow(title: String, subtitle: String, icon: androidx.compo
 
 @Composable
 private fun AboutSupportCard(onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().semantics { role = Role.Button; contentDescription = stringResource(R.string.about_support_title) }, colors = CardDefaults.cardColors(containerColor = fluxMetricColor(FluxMetric.BATTERY).copy(alpha = .14f)), shape = FluxShapes.material.medium) {
+    val supportTitle = stringResource(R.string.about_support_title)
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().semantics { role = Role.Button; contentDescription = supportTitle }, colors = CardDefaults.cardColors(containerColor = fluxMetricColor(FluxMetric.BATTERY).copy(alpha = .14f)), shape = FluxShapes.material.medium) {
         Row(Modifier.padding(FluxSpacing.largeCardPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FluxSpacing.cardGap)) {
             Icon(Icons.Default.Favorite, stringResource(R.string.about_support_title), tint = fluxMetricColor(FluxMetric.BATTERY), modifier = Modifier.size(28.dp))
             Column(Modifier.weight(1f)) {

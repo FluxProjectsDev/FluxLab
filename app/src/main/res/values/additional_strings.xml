@@ -2,7 +2,7 @@
 <resources>
     <string name="workload_list">Native integer, floating-point, multi-threaded CPU, memory copy, memory fill, pointer latency, and optional private-storage tests.</string>
     <string name="cpu_usage_chart">CPU usage history (%)</string>
-    <string name="cpu_chart_scale">0–100% • %1$d seconds</string>
+    <string name="cpu_chart_scale">0–100%% • %1$d seconds</string>
     <string name="about_legal">About &amp; Legal</string>
     <string name="about_legal_subtitle">Product identity, versions, changes, and legal resources</string>
     <string name="about_description">FluxLab is a diagnostic and benchmarking toolkit for Android users who want to measure, verify, and understand device performance in depth.</string>

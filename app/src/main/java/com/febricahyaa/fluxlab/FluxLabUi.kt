@@ -9,7 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +36,7 @@ private data class Destination(val route: String, val label: Int, val icon: Imag
 
 private val destinations = listOf(
     Destination("overview", R.string.overview, Icons.Default.Dashboard),
-    Destination("tests", R.string.tests, Icons.Default.Science),
+    Destination("tests", R.string.tests, Icons.Default.Analytics),
     Destination("sessions", R.string.sessions, Icons.Default.Assessment),
     Destination("reports", R.string.reports, Icons.Default.Description),
     Destination("settings", R.string.settings, Icons.Default.Settings),

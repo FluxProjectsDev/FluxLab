@@ -155,7 +155,7 @@ object FluxMetricColors {
         unavailable = Color(0xFF6B6A70),
     )
 
-    fun forTheme(dark: Boolean): FluxMetricColorSet = if (dark) dark else light
+    fun forTheme(isDark: Boolean): FluxMetricColorSet = if (isDark) dark else light
 
     fun color(metric: FluxMetric, dark: Boolean): Color = with(forTheme(dark)) {
         when (metric) {
@@ -176,7 +176,7 @@ object FluxMetricColors {
 @Composable
 fun fluxMetricColor(metric: FluxMetric): Color = FluxMetricColors.color(
     metric = metric,
-    dark = MaterialTheme.colorScheme.background.luminance() < .5f,
+    isDark = MaterialTheme.colorScheme.background.luminance() < .5f,
 )
 
 @Composable
@@ -187,12 +187,13 @@ fun FluxGauge(
     label: String? = null,
 ) {
     val description = label ?: progress?.let { "${(it * 100f).toInt()}%" } ?: stringResource(R.string.unavailable)
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f)
     Box(modifier.semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.matchParentSize()) {
             val stroke = FluxChartTokens.gaugeStrokeWidth.toPx()
             val inset = stroke / 2f
             drawArc(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f),
+                color = trackColor,
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,

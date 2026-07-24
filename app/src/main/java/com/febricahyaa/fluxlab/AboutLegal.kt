@@ -1,6 +1,7 @@
 package com.febricahyaa.fluxlab
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -39,7 +40,11 @@ object AppVersionInfoReader {
             appName = context.applicationInfo.loadLabel(packageManager).toString(),
             versionName = packageInfo.versionName?.takeIf(String::isNotBlank),
             versionCode = packageInfo.longVersionCode.takeIf { it > 0L },
-            buildType = BuildConfig.BUILD_TYPE,
+            buildType = if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                "debug"
+            } else {
+                "release"
+            },
             packageName = context.packageName,
             installTimeEpochMs = packageInfo.firstInstallTime.takeIf { it > 0L },
             updateTimeEpochMs = packageInfo.lastUpdateTime.takeIf { it > 0L },
