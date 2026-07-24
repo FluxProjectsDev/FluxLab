@@ -106,7 +106,16 @@ private fun FluxLabNavHost(navigation: androidx.navigation.NavHostController, mo
             SessionDetailScreen(model, onBack = { navigation.popBackStack() }, sessionId = entry.arguments?.getString("sessionId"))
         }
         composable("reports") { ReportsScreen(model) }
-        composable("settings") { SettingsScreen(model) }
+        composable("settings") { SettingsScreen(model) { route -> navigation.navigate(route) } }
+        composable("about") { AboutLegalHubScreen(model, onBack = { navigation.popBackStack() }) { route -> navigation.navigate(route) } }
+        composable("about/version") { VersionInformationScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("about/update") { UpdateInformationScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("about/changelog") { ChangelogScreen(model, onBack = { navigation.popBackStack() }) }
+        composable("about/licenses") { LegalContentScreen(model, AboutDocument.LICENSES, onBack = { navigation.popBackStack() }) }
+        composable("about/privacy") { LegalContentScreen(model, AboutDocument.PRIVACY, onBack = { navigation.popBackStack() }) }
+        composable("about/terms") { LegalContentScreen(model, AboutDocument.TERMS, onBack = { navigation.popBackStack() }) }
+        composable("about/credits") { CreditsScreen(onBack = { navigation.popBackStack() }) { route -> navigation.navigate(route) } }
+        composable("about/support") { SupportDevelopmentScreen(onBack = { navigation.popBackStack() }) }
         composable("benchmark/active") { ActiveBenchmarkScreen(model, onBack = { navigation.popBackStack() }) }
         composable("overview/cpu") { MetricDetailScreen(model, MetricDetailKind.CPU, onBack = { navigation.popBackStack() }) }
         composable("overview/gpu") { MetricDetailScreen(model, MetricDetailKind.GPU, onBack = { navigation.popBackStack() }) }

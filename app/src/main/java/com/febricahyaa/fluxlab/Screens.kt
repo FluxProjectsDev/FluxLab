@@ -414,7 +414,7 @@ fun OverviewScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
 }
 
 @Composable
-private fun FluxWaveform() {
+internal fun FluxWaveform() {
     val color = MaterialTheme.colorScheme.primary
     Canvas(Modifier.fillMaxWidth().height(42.dp)) {
         val points = listOf(0.0f, .25f, .7f, .35f, .85f, .45f, 1.0f)
@@ -757,7 +757,7 @@ private fun comparisonCompatibilityText(state: com.febricahyaa.fluxlab.model.Com
 }
 
 @Composable
-fun SettingsScreen(model: AppViewModel) {
+fun SettingsScreen(model: AppViewModel, onNavigate: (String) -> Unit = {}) {
     val settings by model.settings.collectAsStateWithLifecycle()
     var resetDialog by remember { mutableStateOf(false) }
     Page(stringResource(R.string.settings)) {
@@ -815,6 +815,14 @@ fun SettingsScreen(model: AppViewModel) {
                 stringResource(R.string.privacy),
                 stringResource(R.string.report_local_only),
                 stringResource(R.string.privacy_summary),
+            )
+            MetricCard(
+                stringResource(R.string.about_legal),
+                stringResource(R.string.about_legal_subtitle),
+                stringResource(R.string.about_description),
+                Icons.Default.Info,
+                onClick = { onNavigate("about") },
+                metric = FluxMetric.CPU,
             )
             OutlinedButton(onClick = { resetDialog = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.reset_history))

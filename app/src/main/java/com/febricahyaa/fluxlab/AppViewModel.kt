@@ -63,6 +63,9 @@ class AppViewModel(application: Application, private val container: AppContainer
     val dashboard: StateFlow<DashboardState> = mutableDashboard.asStateFlow()
     val settings = container.settingsStore.settings.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
     val sessions = container.repository.observeSessions().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val aboutLegalRepository = AboutLegalRepository(application.resources, UnconfiguredUpdateProvider())
+    private val mutableAboutLegal = MutableStateFlow(AboutLegalState())
+    val aboutLegal: StateFlow<AboutLegalState> = mutableAboutLegal.asStateFlow()
 
     private val engine = QuickTestEngine(
         repository = container.repository,
@@ -72,11 +75,18 @@ class AppViewModel(application: Application, private val container: AppContainer
     )
     val benchmarkProgress: StateFlow<BenchmarkProgress> = engine.progress
     private var benchmarkJob: Job? = null
+    private var updateCheckJob: Job? = null
     private val mutableComparison = MutableStateFlow<SessionComparison?>(null)
     val comparison: StateFlow<SessionComparison?> = mutableComparison.asStateFlow()
     private var monitoringEnabled = true
 
     init {
+        mutableAboutLegal.value = mutableAboutLegal.value.copy(version = AppVersionInfoReader.read(application))
+        viewModelScope.launch {
+            settings.map { it.language }.distinctUntilChanged().collect { language ->
+                loadAboutLegalContent(language)
+            }
+        }
         viewModelScope.launch {
             settings.map { it.samplingIntervalMs }.distinctUntilChanged().collect { interval ->
                 if (monitoringEnabled) container.telemetryRepository.start(interval)
@@ -264,6 +274,21 @@ class AppViewModel(application: Application, private val container: AppContainer
     fun setScreenRecordingDeclared(value: Boolean) = viewModelScope.launch { container.settingsStore.setScreenRecordingDeclared(value) }
     fun setConfirmReadinessWarnings(value: Boolean) = viewModelScope.launch { container.settingsStore.setConfirmReadinessWarnings(value) }
 
+    fun reloadAboutLegal() {
+        viewModelScope.launch { loadAboutLegalContent(settings.value.language) }
+    }
+
+    fun checkForUpdates() {
+        if (updateCheckJob?.isActive == true) return
+        val current = aboutLegal.value.version ?: AppVersionInfoReader.read(getApplication<Application>())
+        mutableAboutLegal.value = mutableAboutLegal.value.copy(update = UpdateCheckState.Checking)
+        updateCheckJob = viewModelScope.launch {
+            val result = runCatching { aboutLegalRepository.checkForUpdates(current) }
+                .getOrElse { UpdateCheckState.Failed(it.message ?: it.javaClass.simpleName) }
+            mutableAboutLegal.value = mutableAboutLegal.value.copy(update = result)
+        }
+    }
+
     private fun setBenchmarkMonitoring(active: Boolean) {
         MonitoringService.setRunning(getApplication(), active)
         if (active) {
@@ -277,6 +302,26 @@ class AppViewModel(application: Application, private val container: AppContainer
             monitoringEnabled = true
             container.telemetryRepository.start(settings.value.samplingIntervalMs)
         }
+    }
+
+    private suspend fun loadAboutLegalContent(language: LanguageSetting) {
+        mutableAboutLegal.value = mutableAboutLegal.value.copy(contentStatus = ContentLoadStatus.LOADING, contentError = null)
+        val result = aboutLegalRepository.load(language)
+        mutableAboutLegal.value = result.fold(
+            onSuccess = { documents ->
+                mutableAboutLegal.value.copy(
+                    contentStatus = ContentLoadStatus.READY,
+                    documents = documents,
+                    contentError = null,
+                )
+            },
+            onFailure = { error ->
+                mutableAboutLegal.value.copy(
+                    contentStatus = ContentLoadStatus.ERROR,
+                    contentError = error.message ?: error.javaClass.simpleName,
+                )
+            },
+        )
     }
 
     private suspend fun refreshRuntime() {
