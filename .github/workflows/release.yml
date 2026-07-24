@@ -1,0 +1,298 @@
+name: FluxLab signed release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Semantic version for a manual release build
+        required: true
+        default: "0.1.0"
+        type: string
+      version_code:
+        description: Positive Android versionCode for a manual release build
+        required: true
+        default: "1"
+        type: string
+      upload_diagnostics:
+        description: Upload short-retention R8/native diagnostics as a protected artifact
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+env:
+  ANDROID_BUILD_TOOLS: "36.0.0"
+  ANDROID_NDK_VERSION: "28.2.13676358"
+  FLUXLAB_PACKAGE_NAME: "com.febricahyaa.fluxlab"
+  FLUXLAB_MIN_SDK: "28"
+  FLUXLAB_TARGET_SDK: "36"
+
+jobs:
+  wrapper-validation:
+    name: Validate Gradle wrapper
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+  release:
+    name: Build and verify signed release
+    needs: wrapper-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Install Android components
+        shell: bash
+        run: sdkmanager "platforms;android-36" "build-tools;${ANDROID_BUILD_TOOLS}" "ndk;${ANDROID_NDK_VERSION}" "cmake;3.22.1"
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version_name="${GITHUB_REF_NAME#v}"
+            version_code="$(git rev-list --count "$GITHUB_SHA")"
+            version_source="$GITHUB_REF_NAME"
+          else
+            version_name="${{ inputs.version_name }}"
+            version_code="${{ inputs.version_code }}"
+            version_source="manual"
+          fi
+          if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release versionName must use X.Y.Z without exposing any signing values." >&2
+            exit 1
+          fi
+          if [[ ! "$version_code" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Release versionCode must be a positive integer without exposing any signing values." >&2
+            exit 1
+          fi
+          {
+            printf 'FLUXLAB_RELEASE_VERSION_NAME=%s\n' "$version_name"
+            printf 'FLUXLAB_RELEASE_VERSION_CODE=%s\n' "$version_code"
+            printf 'FLUXLAB_RELEASE_VERSION_SOURCE=%s\n' "$version_source"
+            printf 'RELEASE_APK_PATH=%s/FluxLab-v%s-release.apk\n' "$RUNNER_TEMP" "$version_name"
+            printf 'RELEASE_SHA_PATH=%s/FluxLab-v%s-release.apk.sha256\n' "$RUNNER_TEMP" "$version_name"
+            printf 'RELEASE_CERTIFICATE_PATH=%s/FluxLab-v%s-certificate.txt\n' "$RUNNER_TEMP" "$version_name"
+            printf 'RELEASE_METADATA_PATH=%s/FluxLab-v%s-build-metadata.json\n' "$RUNNER_TEMP" "$version_name"
+            printf 'RELEASE_CERT_VERIFY_PATH=%s/fluxlab-release-certificate-verification.txt\n' "$RUNNER_TEMP"
+            printf 'RELEASE_BADGING_PATH=%s/fluxlab-release-badging.txt\n' "$RUNNER_TEMP"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate production signing secret configuration
+        shell: bash
+        env:
+          FLUXLAB_RELEASE_STORE_PASSWORD: ${{ secrets.FLUXLAB_RELEASE_STORE_PASSWORD }}
+          FLUXLAB_RELEASE_KEY_ALIAS: ${{ secrets.FLUXLAB_RELEASE_KEY_ALIAS }}
+          FLUXLAB_RELEASE_KEY_PASSWORD: ${{ secrets.FLUXLAB_RELEASE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for variable in FLUXLAB_RELEASE_STORE_PASSWORD FLUXLAB_RELEASE_KEY_ALIAS FLUXLAB_RELEASE_KEY_PASSWORD; do
+            if [[ -z "${!variable:-}" ]]; then
+              missing+=("$variable")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            printf "::error::Missing required production signing secrets: %s. Secret values are not printed.\n" "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Materialize production keystore in runner temp
+        shell: bash
+        env:
+          FLUXLAB_RELEASE_KEYSTORE_B64: ${{ secrets.FLUXLAB_RELEASE_KEYSTORE_B64 }}
+        run: |
+          keystore_path="$RUNNER_TEMP/fluxlab-release.keystore"
+          if [[ -z "${FLUXLAB_RELEASE_KEYSTORE_B64:-}" ]]; then
+            echo "::error::Production keystore secret is empty; secret values are not printed." >&2
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$FLUXLAB_RELEASE_KEYSTORE_B64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          if [[ "$(stat -c '%a' "$keystore_path")" != "600" ]]; then
+            echo "::error::Temporary keystore permissions are not 600; secret values are not printed." >&2
+            exit 1
+          fi
+          printf 'FLUXLAB_RELEASE_KEYSTORE_PATH=%s\n' "$keystore_path" >> "$GITHUB_ENV"
+
+      - name: Validate dependency configuration
+        run: ./gradlew --no-daemon --stacktrace :app:dependencies --configuration debugRuntimeClasspath
+
+      - name: Run unit tests
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
+
+      - name: Run Android lint
+        run: ./gradlew --no-daemon --stacktrace lintDebug
+
+      - name: Compile AndroidTest APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebugAndroidTest
+
+      - name: Build signed release APK
+        shell: bash
+        env:
+          FLUXLAB_RELEASE_STORE_PASSWORD: ${{ secrets.FLUXLAB_RELEASE_STORE_PASSWORD }}
+          FLUXLAB_RELEASE_KEY_ALIAS: ${{ secrets.FLUXLAB_RELEASE_KEY_ALIAS }}
+          FLUXLAB_RELEASE_KEY_PASSWORD: ${{ secrets.FLUXLAB_RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon --stacktrace :app:assembleRelease \
+            -PfluxlabVersionName="$FLUXLAB_RELEASE_VERSION_NAME" \
+            -PfluxlabVersionCode="$FLUXLAB_RELEASE_VERSION_CODE"
+          cp -- app/build/outputs/apk/release/app-release.apk "$RELEASE_APK_PATH"
+
+      - name: Verify ZIP alignment
+        shell: bash
+        run: "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign -c -v 4 \"$RELEASE_APK_PATH\""
+
+      - name: Verify APK signature and extract public certificate data
+        shell: bash
+        run: |
+          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify --verbose --print-certs --Werr "$RELEASE_APK_PATH" > "$RELEASE_CERT_VERIFY_PATH"
+          if grep -Eiq 'Android[[:space:]]+Debug|androiddebugkey' "$RELEASE_CERT_VERIFY_PATH"; then
+            echo "::error::Release APK is signed with an Android debug certificate." >&2
+            exit 1
+          fi
+          certificate_sha256="$(awk 'tolower($0) ~ /certificate sha-256 digest:/ { sub(/^.*: /, ""); print; exit }' "$RELEASE_CERT_VERIFY_PATH")"
+          if [[ -z "$certificate_sha256" ]]; then
+            echo "::error::Release certificate SHA-256 fingerprint could not be extracted." >&2
+            exit 1
+          fi
+          {
+            printf 'Package: %s\n' "$FLUXLAB_PACKAGE_NAME"
+            printf 'Version name: %s\n' "$FLUXLAB_RELEASE_VERSION_NAME"
+            printf 'Version code: %s\n' "$FLUXLAB_RELEASE_VERSION_CODE"
+            printf 'Certificate SHA-256 fingerprint: %s\n' "$certificate_sha256"
+          } > "$RELEASE_CERTIFICATE_PATH"
+          printf 'FLUXLAB_RELEASE_CERTIFICATE_SHA256=%s\n' "$certificate_sha256" >> "$GITHUB_ENV"
+
+      - name: Inspect package, version, native library, and launcher resources
+        shell: bash
+        run: |
+          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/aapt" dump badging "$RELEASE_APK_PATH" > "$RELEASE_BADGING_PATH"
+          expected_package="package: name='$FLUXLAB_PACKAGE_NAME' versionCode='$FLUXLAB_RELEASE_VERSION_CODE' versionName='$FLUXLAB_RELEASE_VERSION_NAME'"
+          grep -Fq "$expected_package" "$RELEASE_BADGING_PATH" || {
+            echo "::error::Release APK package or version metadata does not match the requested values." >&2
+            exit 1
+          }
+          if grep -Fq "application-debuggable" "$RELEASE_BADGING_PATH"; then
+            echo "::error::Release APK is marked debuggable." >&2
+            exit 1
+          fi
+          if ! [[ "$FLUXLAB_RELEASE_VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Release APK versionCode is invalid." >&2
+            exit 1
+          fi
+          if ! [[ "$FLUXLAB_RELEASE_VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release APK versionName is invalid." >&2
+            exit 1
+          fi
+          unzip -l "$RELEASE_APK_PATH" | grep -Fq "lib/arm64-v8a/libfluxlab-benchmark.so" || {
+            echo "::error::Required arm64-v8a benchmark native library is absent from the release APK." >&2
+            exit 1
+          }
+          apk_entries="$(unzip -Z1 "$RELEASE_APK_PATH")"
+          for launcher_name in ic_launcher ic_launcher_round; do
+            if ! grep -Eq "(^|/)${launcher_name}\.(xml|png)$" <<< "$apk_entries"; then
+              echo "::error::Launcher resource ${launcher_name} is absent from the release APK." >&2
+              exit 1
+            fi
+          done
+
+      - name: Generate APK SHA-256
+        shell: bash
+        run: sha256sum "$RELEASE_APK_PATH" > "$RELEASE_SHA_PATH"
+
+      - name: Generate release metadata
+        shell: bash
+        run: |
+          apk_sha256="$(awk '{print $1}' "$RELEASE_SHA_PATH")"
+          certificate_sha256="$FLUXLAB_RELEASE_CERTIFICATE_SHA256"
+          commit_sha="$(git rev-parse HEAD)"
+          build_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf '{\n  "packageName": "%s",\n  "versionCode": %s,\n  "versionName": "%s",\n  "minSdk": %s,\n  "targetSdk": %s,\n  "commitSha": "%s",\n  "tagOrManualVersion": "%s",\n  "workflowRunId": "%s",\n  "buildTimestamp": "%s",\n  "apkSha256": "%s",\n  "certificateSha256Fingerprint": "%s"\n}\n' \
+            "$FLUXLAB_PACKAGE_NAME" "$FLUXLAB_RELEASE_VERSION_CODE" "$FLUXLAB_RELEASE_VERSION_NAME" \
+            "$FLUXLAB_MIN_SDK" "$FLUXLAB_TARGET_SDK" "$commit_sha" "$FLUXLAB_RELEASE_VERSION_SOURCE" \
+            "$GITHUB_RUN_ID" "$build_timestamp" "$apk_sha256" "$certificate_sha256" > "$RELEASE_METADATA_PATH"
+
+      - name: Attest final signed APK bytes
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.RELEASE_APK_PATH }}
+
+      - name: Upload public release artifacts
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: FluxLab-v${{ env.FLUXLAB_RELEASE_VERSION_NAME }}-release
+          path: |
+            ${{ env.RELEASE_APK_PATH }}
+            ${{ env.RELEASE_SHA_PATH }}
+            ${{ env.RELEASE_CERTIFICATE_PATH }}
+            ${{ env.RELEASE_METADATA_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload AndroidTest APK
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: FluxLab-v${{ env.FLUXLAB_RELEASE_VERSION_NAME }}-androidTest
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: FluxLab-v${{ env.FLUXLAB_RELEASE_VERSION_NAME }}-validation-reports
+          path: |
+            **/build/reports/tests/**
+            **/build/reports/lint-results-*.html
+            **/build/reports/lint-results-*.xml
+            **/build/test-results/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload protected R8 and native diagnostics
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.upload_diagnostics }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: FluxLab-v${{ env.FLUXLAB_RELEASE_VERSION_NAME }}-protected-diagnostics
+          path: |
+            app/build/outputs/mapping/release/mapping.txt
+            app/build/intermediates/stripped_native_libs/release/out
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove temporary production keystore
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/fluxlab-release.keystore"
