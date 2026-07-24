@@ -176,7 +176,7 @@ object FluxMetricColors {
 @Composable
 fun fluxMetricColor(metric: FluxMetric): Color = FluxMetricColors.color(
     metric = metric,
-    isDark = MaterialTheme.colorScheme.background.luminance() < .5f,
+    dark = MaterialTheme.colorScheme.background.luminance() < .5f,
 )
 
 @Composable
